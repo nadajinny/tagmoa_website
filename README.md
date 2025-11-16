@@ -1,42 +1,35 @@
-# tagmoa-web
+# Tagmoa Web
 
-This template should help get you started developing with Vue 3 in Vite.
+Vue 3 + Vite로 구현한 Tagmoa 웹 앱입니다. Kotlin 기반 `kotlin-openmission-8`에서 제공했던 기능(로그인, 태그 기반 메인/서브 테스크 관리, 캘린더/프로필/알림 설정 등)을 그대로 웹에 옮겼으며, 데이터는 로컬 저장소(LocalStorage)에 보관합니다.
 
-## Recommended IDE Setup
+## 주요 화면
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- **로그인**: 구글/카카오/네이버 중 하나를 선택하거나 체험 계정으로 바로 경험할 수 있습니다.
+- **홈**: 오늘 마감되는 메인/서브 테스크와 주요 지표를 확인합니다.
+- **테스크 목록 & 상세**: 태그/검색/완료 여부 필터, 메인·서브 테스크 생성/수정/삭제, 체크 기능을 제공합니다.
+- **태그 관리**: 태그 생성, 숨김 전환, 순서 조정, 삭제를 지원합니다.
+- **캘린더**: 월간 뷰에서 마감일과 해당 날짜의 테스크를 확인합니다.
+- **프로필**: 사용자 정보 수정, 알림 시간 설정(권한 요청 없이 저장), 온보딩 가이드, 지원/로그아웃이 포함됩니다.
 
-## Recommended Browser Setup
+## 개발 환경
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd) 
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+- Vue 3 `<script setup>` + TypeScript + Pinia
+- 로컬 데이터/세션은 `localStorage`로 유지 (Firebase 권한 없이도 동작)
+- CSS는 순수 CSS + 맞춤 변수/컴포넌트로 구성
 
-## Type Support for `.vue` Imports in TS
+## 실행 방법
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+```bash
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
 ```
 
-### Type-Check, Compile and Minify for Production
+브라우저에서 `http://localhost:5173`으로 접속하면 됩니다.
 
-```sh
+## 빌드 & 타입 검사
+
+```bash
 npm run build
 ```
+
+동시에 `vue-tsc --build`로 타입 체크도 수행합니다.
