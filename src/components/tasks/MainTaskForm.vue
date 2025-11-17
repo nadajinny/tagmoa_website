@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { MainTask, MainTaskInput, Tag } from '../../types/models'
-import { createDateInputValue, parseDateInputValue } from '../../utils/dates'
+import { formatDateRange } from '../../utils/dates'
+import DateRangePicker from '../ui/DateRangePicker.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -21,12 +22,12 @@ const emit = defineEmits<{
 const title = ref('')
 const description = ref('')
 const manualSchedule = ref(false)
-const startDate = ref<string>('')
-const endDate = ref<string>('')
-const dueDate = ref<string>('')
+const startDate = ref<number | null>(null)
+const endDate = ref<number | null>(null)
 const alarmEnabled = ref(true)
 const tagIds = ref<string[]>([])
 const color = ref('#5577ff')
+const showRangePicker = ref(false)
 
 watch(
   () => props.modelValue,
@@ -35,9 +36,8 @@ watch(
       title.value = ''
       description.value = ''
       manualSchedule.value = false
-      startDate.value = ''
-      endDate.value = ''
-      dueDate.value = ''
+      startDate.value = null
+      endDate.value = null
       alarmEnabled.value = true
       tagIds.value = []
       color.value = '#5577ff'
@@ -46,9 +46,13 @@ watch(
     title.value = task.title
     description.value = task.description
     manualSchedule.value = task.manualSchedule
-    startDate.value = createDateInputValue(task.startDate)
-    endDate.value = createDateInputValue(task.endDate)
-    dueDate.value = createDateInputValue(task.dueDate)
+    if (task.manualSchedule) {
+      startDate.value = task.startDate ?? null
+      endDate.value = task.endDate ?? task.startDate ?? null
+    } else {
+      startDate.value = null
+      endDate.value = null
+    }
     alarmEnabled.value = task.alarmEnabled
     tagIds.value = [...task.tagIds]
     color.value = task.mainColor
@@ -66,16 +70,34 @@ function toggleTag(id: string) {
   }
 }
 
+function applyRange(range: { start: number | null; end: number | null }) {
+  startDate.value = range.start ?? null
+  endDate.value = range.end ?? range.start ?? null
+  manualSchedule.value = Boolean(range.start)
+  showRangePicker.value = false
+}
+
+function clearRange() {
+  startDate.value = null
+  endDate.value = null
+  manualSchedule.value = false
+}
+
+const rangeLabel = computed(() => formatDateRange(startDate.value, endDate.value) || '기간 미정')
+
 function submit() {
-  if (!title.value.trim()) return
+  const trimmedTitle = title.value.trim()
+  if (!trimmedTitle) return
+  const hasManualSchedule = manualSchedule.value && Boolean(startDate.value)
+  const normalizedStart = hasManualSchedule ? startDate.value : null
+  const normalizedEnd = hasManualSchedule ? endDate.value ?? startDate.value ?? null : null
   emit('save', {
     id: props.modelValue?.id,
-    title: title.value,
+    title: trimmedTitle,
     description: description.value,
-    manualSchedule: manualSchedule.value,
-    startDate: manualSchedule.value ? parseDateInputValue(startDate.value) : null,
-    endDate: manualSchedule.value ? parseDateInputValue(endDate.value) : null,
-    dueDate: parseDateInputValue(dueDate.value),
+    manualSchedule: hasManualSchedule,
+    startDate: normalizedStart,
+    endDate: normalizedEnd,
     tagIds: tagIds.value,
     mainColor: color.value,
     alarmEnabled: alarmEnabled.value,
@@ -99,26 +121,26 @@ const tagOptions = computed(() => props.tags.filter((tag) => !tag.hidden))
       <textarea v-model="description" placeholder="테스크 설명"></textarea>
     </label>
 
-    <label class="task-form__switch">
-      <input v-model="manualSchedule" type="checkbox" />
-      수동으로 기간 지정
-    </label>
-
-    <div class="task-form__dates" v-if="manualSchedule">
-      <label>
-        시작일
-        <input v-model="startDate" type="date" />
-      </label>
-      <label>
-        종료일
-        <input v-model="endDate" type="date" />
-      </label>
-    </div>
-
-    <label>
-      마감일
-      <input v-model="dueDate" type="date" />
-    </label>
+    <section class="task-form__range">
+      <div class="task-form__range-text">
+        <p>기간</p>
+        <strong>{{ manualSchedule ? rangeLabel : '기간 미정' }}</strong>
+        <small>캘린더에서 시작일과 종료일을 선택하세요.</small>
+      </div>
+      <div class="task-form__range-actions">
+        <button type="button" class="task-form__range-btn" @click="showRangePicker = true">
+          캘린더 열기
+        </button>
+        <button
+          v-if="manualSchedule"
+          type="button"
+          class="task-form__range-btn ghost"
+          @click="clearRange"
+        >
+          초기화
+        </button>
+      </div>
+    </section>
 
     <div class="task-form__colors">
       <p>색상</p>
@@ -157,6 +179,14 @@ const tagOptions = computed(() => props.tags.filter((tag) => !tag.hidden))
       </button>
       <button type="button" class="ghost" @click="emit('cancel')">취소</button>
     </footer>
+
+    <DateRangePicker
+      v-model="showRangePicker"
+      :start="startDate"
+      :end="endDate"
+      title="기간 선택"
+      @confirm="applyRange"
+    />
   </form>
 </template>
 
@@ -192,10 +222,45 @@ const tagOptions = computed(() => props.tags.filter((tag) => !tag.hidden))
   gap: 0.5rem;
 }
 
-.task-form__dates {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0.8rem;
+.task-form__range {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px dashed rgba(17, 24, 39, 0.12);
+  border-radius: 20px;
+  padding: 1rem;
+}
+
+.task-form__range-text p {
+  font-weight: 600;
+}
+
+.task-form__range-text strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-top: 0.35rem;
+}
+
+.task-form__range-text small {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  display: block;
+  margin-top: 0.25rem;
+}
+
+.task-form__range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.task-form__range-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .task-form__colors {

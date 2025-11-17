@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { MainTask, SubTask, SubTaskInput } from '../../types/models'
-import { createDateInputValue, parseDateInputValue } from '../../utils/dates'
+import { formatDateRange, createTimeInputValue, mergeDateWithTime } from '../../utils/dates'
+import DateRangePicker from '../ui/DateRangePicker.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -21,11 +22,14 @@ const emit = defineEmits<{
 const mainTaskId = ref('')
 const content = ref('')
 const priority = ref(0)
-const startDate = ref('')
-const endDate = ref('')
-const dueDate = ref('')
+const startDate = ref<number | null>(null)
+const endDate = ref<number | null>(null)
+const startTime = ref('')
+const endTime = ref('')
 const alarmEnabled = ref(false)
 const alarmLeadMinutes = ref(0)
+const showRangePicker = ref(false)
+const rangeButtonRef = ref<HTMLButtonElement | null>(null)
 
 watch(
   () => props.mainTasks,
@@ -46,9 +50,10 @@ watch(
     if (!subTask) {
       content.value = ''
       priority.value = 0
-      startDate.value = ''
-      endDate.value = ''
-      dueDate.value = ''
+      startDate.value = null
+      endDate.value = null
+      startTime.value = ''
+      endTime.value = ''
       alarmEnabled.value = false
       alarmLeadMinutes.value = 0
       return
@@ -56,25 +61,72 @@ watch(
     mainTaskId.value = subTask.mainTaskId
     content.value = subTask.content
     priority.value = subTask.priority
-    startDate.value = createDateInputValue(subTask.startDate)
-    endDate.value = createDateInputValue(subTask.endDate)
-    dueDate.value = createDateInputValue(subTask.dueDate)
+    const inferredStart = subTask.startDate ?? subTask.endDate ?? subTask.dueDate ?? null
+    const inferredEnd = subTask.endDate ?? subTask.startDate ?? subTask.dueDate ?? null
+    startDate.value = inferredStart
+    endDate.value = inferredEnd
+    startTime.value = createTimeInputValue(subTask.startDate)
+    endTime.value = createTimeInputValue(subTask.endDate)
     alarmEnabled.value = subTask.alarmEnabled
     alarmLeadMinutes.value = subTask.alarmLeadMinutes
   },
   { immediate: true },
 )
 
+const hasRange = computed(() => Boolean(startDate.value || endDate.value))
+const rangeLabel = computed(() => formatDateRange(startDate.value, endDate.value) || '기간 미정')
+
+function applyRange(range: { start: number | null; end: number | null }) {
+  startDate.value = range.start ?? null
+  endDate.value = range.end ?? range.start ?? null
+  if (startDate.value && !startTime.value) {
+    startTime.value = '09:00'
+  }
+  if ((endDate.value ?? startDate.value) && !endTime.value) {
+    endTime.value = '18:00'
+  }
+  showRangePicker.value = false
+}
+
+function clearRange() {
+  startDate.value = null
+  endDate.value = null
+  startTime.value = ''
+  endTime.value = ''
+}
+
+function guardTimeInput(event: FocusEvent) {
+  if (hasRange.value) return
+  event.preventDefault()
+  const target = event.target as HTMLInputElement | null
+  target?.blur()
+  if (typeof window !== 'undefined') {
+    window.alert('먼저 기간을 선택해주세요.')
+  }
+  rangeButtonRef.value?.focus()
+  showRangePicker.value = true
+}
+
 function submit() {
   if (!mainTaskId.value) return
+  const hasDates = Boolean(startDate.value || endDate.value)
+  const baseStart = hasDates ? startDate.value ?? endDate.value : null
+  const baseEnd = hasDates ? endDate.value ?? startDate.value ?? null : null
+  let computedStart = hasDates ? mergeDateWithTime(baseStart, startTime.value || null) : null
+  let computedEnd = hasDates ? mergeDateWithTime(baseEnd, endTime.value || null) : null
+  if (computedStart && !computedEnd) {
+    computedEnd = computedStart
+  }
+  if (computedStart && computedEnd && computedEnd < computedStart) {
+    computedEnd = computedStart
+  }
   emit('save', {
     id: props.modelValue?.id,
     mainTaskId: mainTaskId.value,
     content: content.value,
     priority: priority.value,
-    startDate: parseDateInputValue(startDate.value),
-    endDate: parseDateInputValue(endDate.value),
-    dueDate: parseDateInputValue(dueDate.value),
+    startDate: computedStart,
+    endDate: computedEnd,
     alarmEnabled: alarmEnabled.value,
     alarmLeadMinutes: alarmLeadMinutes.value,
   })
@@ -107,18 +159,39 @@ function submit() {
       </select>
     </label>
 
-    <div class="sub-form__dates">
+    <section class="sub-form__range">
+      <div>
+        <p>기간</p>
+        <strong>{{ hasRange ? rangeLabel : '기간 미정' }}</strong>
+      </div>
+      <div class="sub-form__range-actions">
+        <button
+          type="button"
+          class="sub-form__range-btn"
+          ref="rangeButtonRef"
+          @click="showRangePicker = true"
+        >
+          캘린더 열기
+        </button>
+        <button
+          v-if="hasRange"
+          type="button"
+          class="sub-form__range-btn ghost"
+          @click="clearRange"
+        >
+          초기화
+        </button>
+      </div>
+    </section>
+
+    <div class="sub-form__times">
       <label>
-        시작
-        <input v-model="startDate" type="date" />
+        시작 시간
+        <input v-model="startTime" type="time" step="300" @focus="guardTimeInput" />
       </label>
       <label>
-        종료
-        <input v-model="endDate" type="date" />
-      </label>
-      <label>
-        마감
-        <input v-model="dueDate" type="date" />
+        종료 시간
+        <input v-model="endTime" type="time" step="300" @focus="guardTimeInput" />
       </label>
     </div>
 
@@ -136,6 +209,14 @@ function submit() {
       <button class="btn-primary" type="submit">저장</button>
       <button type="button" class="ghost" @click="emit('cancel')">취소</button>
     </footer>
+
+    <DateRangePicker
+      v-model="showRangePicker"
+      :start="startDate"
+      :end="endDate"
+      title="기간 선택"
+      @confirm="applyRange"
+    />
   </form>
 </template>
 
@@ -160,9 +241,41 @@ function submit() {
   padding: 0.75rem 0.9rem;
 }
 
-.sub-form__dates {
+.sub-form__range {
+  border: 1px dashed rgba(17, 24, 39, 0.12);
+  border-radius: 18px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sub-form__range p {
+  margin: 0;
+}
+
+.sub-form__range strong {
+  font-size: 1rem;
+}
+
+.sub-form__range-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sub-form__range-btn {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sub-form__times {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.8rem;
 }
 
@@ -185,3 +298,12 @@ footer {
   cursor: pointer;
 }
 </style>
+function guardTimeInput(event: FocusEvent) {
+  if (hasRange.value) return
+  event.preventDefault()
+  const target = event.target as HTMLInputElement | null
+  target?.blur()
+  if (typeof window !== 'undefined') {
+    window.alert('먼저 기간을 선택해주세요.')
+  }
+}

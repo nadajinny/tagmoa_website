@@ -88,7 +88,6 @@ export interface MainTaskInput {
   description: string
   startDate?: Timestamp
   endDate?: Timestamp
-  dueDate?: Timestamp
   manualSchedule: boolean
   mainColor: string
   tagIds: string[]
@@ -103,7 +102,6 @@ export interface SubTaskInput {
   priority: number
   startDate?: Timestamp
   endDate?: Timestamp
-  dueDate?: Timestamp
   alarmEnabled: boolean
   alarmLeadMinutes: number
   isCompleted?: boolean

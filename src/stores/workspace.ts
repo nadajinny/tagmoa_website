@@ -43,30 +43,32 @@ export const useWorkspaceStore = defineStore('workspace', () => {
 
   const allMainTasks = computed<MainTask[]>(() =>
     Object.values(state.tasks).sort((a, b) => {
-      const dueA = a.dueDate ?? Number.MAX_SAFE_INTEGER
-      const dueB = b.dueDate ?? Number.MAX_SAFE_INTEGER
-      if (dueA === dueB) {
+      const endA = a.endDate ?? a.startDate ?? Number.MAX_SAFE_INTEGER
+      const endB = b.endDate ?? b.startDate ?? Number.MAX_SAFE_INTEGER
+      if (endA === endB) {
         return (a.startDate ?? Number.MAX_SAFE_INTEGER) - (b.startDate ?? Number.MAX_SAFE_INTEGER)
       }
-      return dueA - dueB
+      return endA - endB
     }),
   )
 
   const allSubTasks = computed<SubTask[]>(() =>
     Object.values(state.subtasks).sort((a, b) => {
       if (a.priority === b.priority) {
-        return (a.dueDate ?? Number.MAX_SAFE_INTEGER) - (b.dueDate ?? Number.MAX_SAFE_INTEGER)
+        const endA = a.endDate ?? a.startDate ?? Number.MAX_SAFE_INTEGER
+        const endB = b.endDate ?? b.startDate ?? Number.MAX_SAFE_INTEGER
+        return endA - endB
       }
       return a.priority - b.priority
     }),
   )
 
   const dueTodayMain = computed(() =>
-    allMainTasks.value.filter((task) => !task.isCompleted && isDueToday(task.dueDate)),
+    allMainTasks.value.filter((task) => !task.isCompleted && isDueToday(task.endDate)),
   )
 
   const dueTodaySub = computed(() =>
-    allSubTasks.value.filter((task) => !task.isCompleted && isDueToday(task.dueDate)),
+    allSubTasks.value.filter((task) => !task.isCompleted && isDueToday(task.endDate)),
   )
 
   function resetWorkspace() {
@@ -139,16 +141,18 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     const now = Date.now()
     const id = payload.id ?? createId()
     const existing = state.tasks[id]
+    const hasManualSchedule =
+      Boolean(payload.manualSchedule) && Boolean(payload.startDate ?? payload.endDate)
+    const normalizedStart = hasManualSchedule ? payload.startDate ?? payload.endDate ?? null : null
+    const normalizedEnd = hasManualSchedule ? payload.endDate ?? payload.startDate ?? null : null
     const next: MainTask = {
       id,
       title: payload.title.trim(),
       description: payload.description.trim(),
-      startDate: payload.startDate ?? null,
-      endDate: payload.endDate ?? null,
-      dueDate: payload.manualSchedule
-        ? payload.dueDate ?? payload.endDate ?? payload.startDate ?? null
-        : payload.dueDate ?? null,
-      manualSchedule: payload.manualSchedule,
+      startDate: normalizedStart,
+      endDate: normalizedEnd,
+      dueDate: existing?.dueDate ?? null,
+      manualSchedule: hasManualSchedule,
       isCompleted: payload.isCompleted ?? existing?.isCompleted ?? false,
       completedAt: payload.isCompleted ? existing?.completedAt ?? now : existing?.completedAt ?? null,
       mainColor: payload.mainColor,
@@ -175,8 +179,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function toggleMainCompletion(id: string, isCompleted: boolean) {
     const task = state.tasks[id]
     if (!task) return
+    const timestamp = isCompleted ? Date.now() : null
     task.isCompleted = isCompleted
-    task.completedAt = isCompleted ? Date.now() : null
+    task.completedAt = timestamp
+    task.dueDate = timestamp
   }
 
   function saveSubTask(payload: SubTaskInput): SubTask {
@@ -189,8 +195,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       content: payload.content.trim(),
       priority: payload.priority,
       startDate: payload.startDate ?? null,
-      endDate: payload.endDate ?? null,
-      dueDate: payload.dueDate ?? payload.endDate ?? payload.startDate ?? null,
+      endDate: payload.endDate ?? payload.startDate ?? null,
+      dueDate: existing?.dueDate ?? null,
       isCompleted: payload.isCompleted ?? existing?.isCompleted ?? false,
       completedAt: payload.isCompleted ? existing?.completedAt ?? now : existing?.completedAt ?? null,
       alarmEnabled: payload.alarmEnabled,
@@ -210,8 +216,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   function toggleSubCompletion(id: string, isCompleted: boolean) {
     const sub = state.subtasks[id]
     if (!sub) return
+    const timestamp = isCompleted ? Date.now() : null
     sub.isCompleted = isCompleted
-    sub.completedAt = isCompleted ? Date.now() : null
+    sub.completedAt = timestamp
+    sub.dueDate = timestamp
   }
 
   function getSubTasksForTask(taskId: string): SubTask[] {

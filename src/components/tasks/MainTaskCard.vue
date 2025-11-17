@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { MainTask, SubTask, Tag } from '../../types/models'
-import { formatDate, formatDateRange, isDueToday, isOverdue } from '../../utils/dates'
+import { formatDateRange, isDueToday, isOverdue } from '../../utils/dates'
 
 const props = defineProps<{
   task: MainTask
@@ -27,24 +27,23 @@ const completionRatio = computed(() => {
 })
 
 const scheduleLabel = computed(() => {
-  if (props.task.manualSchedule) {
-    const label = formatDateRange(props.task.startDate, props.task.endDate)
-    return label || '기간 미정'
-  }
-  return props.task.dueDate ? `${formatDate(props.task.dueDate)} 마감` : '마감일 미정'
+  const label = formatDateRange(props.task.startDate, props.task.endDate)
+  return label || '기간 미정'
 })
+
+const deadline = computed(() => props.task.endDate ?? props.task.startDate ?? null)
 
 const statusText = computed(() => {
   if (props.task.isCompleted) return '완료됨'
-  if (isDueToday(props.task.dueDate)) return '오늘 마감'
-  if (isOverdue(props.task.dueDate)) return '지연됨'
+  if (deadline.value && isDueToday(deadline.value)) return '오늘 마감'
+  if (deadline.value && isOverdue(deadline.value)) return '지연됨'
   return '진행 중'
 })
 
 const statusTone = computed(() => {
   if (props.task.isCompleted) return '#52a79c'
-  if (isOverdue(props.task.dueDate)) return '#ff5e62'
-  if (isDueToday(props.task.dueDate)) return '#ffb347'
+  if (deadline.value && isOverdue(deadline.value)) return '#ff5e62'
+  if (deadline.value && isDueToday(deadline.value)) return '#ffb347'
   return '#5577ff'
 })
 </script>

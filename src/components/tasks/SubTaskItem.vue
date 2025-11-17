@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { SubTask } from '../../types/models'
-import { formatDate, isDueToday, isOverdue } from '../../utils/dates'
+import { formatDateRange, formatTime } from '../../utils/dates'
 
 const props = defineProps<{
   item: SubTask
@@ -15,14 +15,18 @@ const emit = defineEmits<{
 
 const priorityLabel = ['💡', '🔥', '🚀', '⭐️']
 
-const dueLabel = computed(() => {
-  if (isDueToday(props.item.dueDate)) {
-    return '오늘 마감'
+const scheduleLabel = computed(
+  () => formatDateRange(props.item.startDate, props.item.endDate) || '기간 미정',
+)
+
+const timeLabel = computed(() => {
+  const start = formatTime(props.item.startDate)
+  const end = formatTime(props.item.endDate)
+  if (start && end) {
+    if (start === end) return start
+    return `${start} ~ ${end}`
   }
-  if (isOverdue(props.item.dueDate)) {
-    return '기한 지남'
-  }
-  return props.item.dueDate ? formatDate(props.item.dueDate) : '마감일 없음'
+  return start || end || ''
 })
 </script>
 
@@ -42,7 +46,10 @@ const dueLabel = computed(() => {
         <span class="emoji">{{ priorityLabel[item.priority] ?? '•' }}</span>
         {{ item.content }}
       </p>
-      <small>{{ dueLabel }}</small>
+      <small>
+        {{ scheduleLabel }}
+        <template v-if="timeLabel"> · {{ timeLabel }}</template>
+      </small>
     </div>
 
     <div class="sub-task__actions">

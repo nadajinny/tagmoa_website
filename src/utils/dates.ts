@@ -103,6 +103,29 @@ export function formatTime(ts: Timestamp): string {
   return format(target, 'a hh:mm')
 }
 
+export function createTimeInputValue(ts: Timestamp): string {
+  const target = toDate(ts)
+  if (!target) return ''
+  return format(target, 'HH:mm')
+}
+
+export function mergeDateWithTime(
+  date: Timestamp,
+  timeValue: string | null | undefined,
+): Timestamp {
+  if (!date) return null
+  if (!timeValue) return date
+  const [rawHours, rawMinutes] = timeValue.split(':')
+  const hours = Number(rawHours ?? 0)
+  const minutes = Number(rawMinutes ?? 0)
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return date
+  }
+  const result = new Date(date)
+  result.setHours(hours, minutes, 0, 0)
+  return result.getTime()
+}
+
 export function toDateKey(input: Date | number): string {
   const source = typeof input === 'number' ? new Date(input) : input
   return format(source, 'yyyy-MM-dd')

@@ -274,8 +274,8 @@ watch(viewMode, (mode) => {
 
 function buildSpan(subTask: SubTask) {
   const segments: { key: string; position: RangePosition }[] = []
-  const startTs = subTask.startDate ?? subTask.dueDate ?? subTask.endDate
-  const endTs = subTask.endDate ?? subTask.dueDate ?? subTask.startDate ?? startTs
+  const startTs = subTask.startDate ?? subTask.endDate ?? subTask.dueDate
+  const endTs = subTask.endDate ?? subTask.startDate ?? subTask.dueDate ?? startTs
   if (!startTs && !endTs) return segments
   const startDate = startOfDay(new Date(startTs ?? Date.now()))
   const endDate = startOfDay(new Date(endTs ?? startTs ?? Date.now()))
