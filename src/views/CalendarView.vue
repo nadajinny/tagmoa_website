@@ -38,6 +38,27 @@ type DaySubTask = {
   position: RangePosition
 }
 
+type CalendarDay = {
+  date: Date
+  key: string
+  isCurrentMonth: boolean
+  subtasks: DaySubTask[]
+}
+
+type WeekBar = {
+  id: string
+  start: number
+  end: number
+  span: number
+  row: number
+  content: string
+  color: string
+  bgColor: string
+  mainTitle: string
+  truncatedStart: boolean
+  truncatedEnd: boolean
+}
+
 const mainTaskLookup = computed<Record<string, (typeof allMainTasks.value)[number]>>(() => {
   const map: Record<string, (typeof allMainTasks.value)[number]> = {}
   allMainTasks.value.forEach((task) => {
@@ -54,17 +75,15 @@ const subTasksByDate = computed(() => {
     const parent = mainTaskLookup.value[subTask.mainTaskId]
     const color = parent?.mainColor ?? '#5476ff'
     const translucent = toTranslucent(color)
-    span.forEach(({ key, position }) => {
-      if (!map[key]) {
-        map[key] = []
-      }
-      map[key].push({
+    span.forEach((segment) => {
+      const bucket = map[segment.key] ?? (map[segment.key] = [])
+      bucket.push({
         id: subTask.id,
         content: subTask.content,
         color,
         bgColor: translucent,
         mainTitle: parent?.title || '메인 테스크 없음',
-        position,
+        position: segment.position,
       })
     })
   })
@@ -74,10 +93,12 @@ const subTasksByDate = computed(() => {
   return map
 })
 
-const calendarDays = computed(() => {
-  const start = startOfWeek(startOfMonth(currentDate.value))
-  const end = endOfWeek(endOfMonth(currentDate.value))
-  const days = []
+const calendarDays = computed<CalendarDay[]>(() => {
+  const days: CalendarDay[] = []
+  const monthStart = startOfMonth(currentDate.value)
+  const monthEnd = endOfMonth(currentDate.value)
+  const start = startOfWeek(monthStart)
+  const end = endOfWeek(monthEnd)
   let cursor = start
   while (cursor <= end) {
     const key = toDateKey(cursor)
@@ -90,6 +111,21 @@ const calendarDays = computed(() => {
     cursor = addDays(cursor, 1)
   }
   return days
+})
+
+const calendarWeeks = computed(() => {
+  const weeks = []
+  for (let i = 0; i < calendarDays.value.length; i += 7) {
+    const chunk = calendarDays.value.slice(i, i + 7)
+    const { bars, rowCount } = buildWeekBars(chunk)
+    weeks.push({
+      id: chunk[0]?.key ?? `week-${i}`,
+      days: chunk,
+      bars,
+      rowCount,
+    })
+  }
+  return weeks
 })
 
 const selectedSubTasks = computed(() => subTasksByDate.value[selectedKey.value] ?? [])
@@ -141,6 +177,58 @@ function buildSpan(subTask: SubTask) {
   return segments
 }
 
+function buildWeekBars(weekDays: CalendarDay[]) {
+  const entries = new Map<string, WeekBar>()
+  weekDays.forEach((day, index) => {
+    day.subtasks.forEach((segment) => {
+      const existing = entries.get(segment.id)
+      if (!existing) {
+        entries.set(segment.id, {
+          id: segment.id,
+          start: index,
+          end: index,
+          span: 1,
+          row: 0,
+          content: segment.content,
+          color: segment.color,
+          bgColor: segment.bgColor,
+          mainTitle: segment.mainTitle,
+          truncatedStart: !(segment.position === 'start' || segment.position === 'single'),
+          truncatedEnd: !(segment.position === 'end' || segment.position === 'single'),
+        })
+      } else {
+        existing.end = index
+        if (segment.position === 'start' || segment.position === 'single') {
+          existing.truncatedStart = false
+        }
+        if (segment.position === 'end' || segment.position === 'single') {
+          existing.truncatedEnd = false
+        }
+      }
+    })
+  })
+  const bars = Array.from(entries.values()).map((bar) => ({
+    ...bar,
+    span: bar.end - bar.start + 1,
+  }))
+  bars.sort((a, b) => {
+    if (a.start === b.start) return b.span - a.span
+    return a.start - b.start
+  })
+  const rowEnds: number[] = []
+  bars.forEach((bar) => {
+    let rowIndex = rowEnds.findIndex((end) => end < bar.start)
+    if (rowIndex === -1) {
+      rowIndex = rowEnds.length
+      rowEnds.push(bar.end)
+    } else {
+      rowEnds[rowIndex] = bar.end
+    }
+    bar.row = rowIndex
+  })
+  return { bars, rowCount: rowEnds.length }
+}
+
 function toTranslucent(hex: string, alpha = 0.18) {
   if (!hex || !hex.startsWith('#')) return hex
   const raw = hex.replace('#', '')
@@ -169,46 +257,51 @@ function toTranslucent(hex: string, alpha = 0.18) {
         <h2>{{ monthLabel }}</h2>
         <button type="button" @click="goNext">›</button>
       </header>
-      <div class="calendar__grid">
+      <div class="calendar__weekday-row">
         <div class="calendar__weekday" v-for="weekday in ['일','월','화','수','목','금','토']" :key="weekday">
           {{ weekday }}
         </div>
-        <button
-          v-for="day in calendarDays"
-          :key="day.key"
-          type="button"
-          class="calendar__day"
-          :class="{
-            'calendar__day--muted': !day.isCurrentMonth,
-            'calendar__day--selected': selectedKey === day.key,
-          }"
-          @click="selectDay(day.key)"
-        >
-          <div class="calendar__day-header">
-            <span>{{ format(day.date, 'd') }}</span>
-            <small v-if="day.subtasks.length">{{ day.subtasks.length }}</small>
-          </div>
-          <ul class="calendar__subtasks" v-if="day.subtasks.length">
-            <li
-              v-for="subtask in day.subtasks"
-              :key="subtask.id + day.key"
-              class="calendar__subtask"
-              :class="`calendar__subtask--${subtask.position}`"
+      </div>
+      <div class="calendar__weeks">
+        <div v-for="week in calendarWeeks" :key="week.id" class="calendar__week">
+          <div class="calendar__week-grid" :style="{ '--bar-rows': week.rowCount }">
+            <button
+              v-for="day in week.days"
+              :key="week.id + day.key"
+              type="button"
+              class="calendar__day"
+              :class="{
+                'calendar__day--muted': !day.isCurrentMonth,
+                'calendar__day--selected': selectedKey === day.key,
+              }"
+              @click="selectDay(day.key)"
+            >
+              <div class="calendar__day-content">
+                <div class="calendar__day-header">
+                  <span>{{ format(day.date, 'd') }}</span>
+                </div>
+              </div>
+            </button>
+
+            <div
+              v-for="bar in week.bars"
+              :key="bar.id + week.id + bar.row"
+              class="calendar__week-bar"
+              :data-truncated-start="bar.truncatedStart"
+              :data-truncated-end="bar.truncatedEnd"
               :style="{
-                '--subtask-color': subtask.color,
-                borderColor: subtask.color,
-                backgroundColor: subtask.bgColor,
+                gridColumn: `${bar.start + 1} / span ${bar.span}`,
+                gridRow: `${bar.row + 2}`,
               }"
             >
-              <span class="calendar__subtask-indicator" :style="{ backgroundColor: subtask.color }"></span>
+              <span class="calendar__subtask-indicator"></span>
               <p>
-                {{ subtask.content }}
-                <small>{{ subtask.mainTitle }}</small>
+                {{ bar.content }}
+                <small>{{ bar.mainTitle }}</small>
               </p>
-            </li>
-          </ul>
-          <p v-else class="calendar__empty-label">-</p>
-        </button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -256,10 +349,12 @@ function toTranslucent(hex: string, alpha = 0.18) {
   cursor: pointer;
 }
 
-.calendar__grid {
+.calendar__weekday-row {
+  --calendar-gap: 0.35rem;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.35rem;
+  gap: var(--calendar-gap);
+  margin-bottom: 0.5rem;
 }
 
 .calendar__weekday {
@@ -268,20 +363,47 @@ function toTranslucent(hex: string, alpha = 0.18) {
   color: var(--text-muted);
 }
 
+.calendar__weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar__week {
+  padding: 0.25rem 0;
+}
+
+.calendar__week-grid {
+  --calendar-gap: 0.35rem;
+  --bar-rows: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--bar-rows), auto);
+  column-gap: var(--calendar-gap);
+  row-gap: 0.25rem;
+}
+
 .calendar__day {
+  grid-row: 1;
   border: none;
-  border-radius: 16px;
-  padding: 0.75rem 0.5rem;
+  padding: 0.35rem;
   text-align: left;
-  min-height: 110px;
-  background-color: var(--surface-muted);
+  min-height: auto;
+  background: transparent;
   cursor: pointer;
+  position: relative;
+  overflow: visible;
+}
+
+.calendar__day-content {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 0.3rem;
-  position: relative;
-  overflow: visible;
+  gap: 0.35rem;
+  padding: 0.25rem 0.35rem 0.15rem;
+  min-height: inherit;
+  height: 100%;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .calendar__day--muted {
@@ -289,7 +411,7 @@ function toTranslucent(hex: string, alpha = 0.18) {
 }
 
 .calendar__day--selected {
-  outline: 2px solid var(--brand-primary);
+  background: transparent;
 }
 
 .calendar__day-header {
@@ -299,87 +421,63 @@ function toTranslucent(hex: string, alpha = 0.18) {
   font-weight: 600;
 }
 
-.calendar__day-header small {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
-
-.calendar__subtasks {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.calendar__subtask {
-  border: none;
-  border-radius: 12px;
-  padding: 0.35rem 0.45rem;
-  display: flex;
-  gap: 0.4rem;
+.calendar__day-header span {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
   align-items: center;
-  position: relative;
-  color: var(--text-primary);
-  backdrop-filter: brightness(1.05);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 3px 8px rgba(0, 0, 0, 0.08);
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.calendar__day--selected .calendar__day-header span {
+  background-color: rgba(84, 118, 255, 0.2);
+  color: var(--brand-primary);
+  font-weight: 700;
+}
+
+.calendar__week-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.95rem 1.1rem;
+  border-radius: 18px;
+  background-color: #fff;
+  border: 1px solid rgba(25, 30, 58, 0.08);
+  color: #1b1e31;
+  font-size: 0.95rem;
+  min-height: 0;
+}
+
+.calendar__week-bar[data-truncated-start='true'] {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.calendar__week-bar[data-truncated-end='true'] {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
 }
 
 .calendar__subtask-indicator {
-  width: 4px;
+  width: 6px;
   border-radius: 999px;
   flex-shrink: 0;
   align-self: stretch;
+  background-color: #000;
 }
 
-.calendar__subtask p {
-  font-size: 0.78rem;
-  line-height: 1.3;
+.calendar__week-bar p {
+  font-size: 1.4rem;
+  line-height: 1.45;
   display: flex;
   flex-direction: column;
+  word-break: break-word;
 }
 
-.calendar__subtask p small {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-}
-
-.calendar__subtask::before,
-.calendar__subtask::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 70%;
-  background-color: var(--subtask-color, var(--brand-primary));
-  opacity: 0.25;
-  z-index: -1;
-}
-
-.calendar__subtask--start::after,
-.calendar__subtask--middle::after {
-  right: -0.4rem;
-  width: 0.4rem;
-}
-
-.calendar__subtask--end::before,
-.calendar__subtask--middle::before {
-  left: -0.4rem;
-  width: 0.4rem;
-}
-
-.calendar__subtask--single::before,
-.calendar__subtask--single::after,
-.calendar__subtask--start::before,
-.calendar__subtask--end::after {
-  display: none;
-}
-
-.calendar__empty-label {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.75rem;
+.calendar__week-bar p small {
+  font-size: 0.9rem;
+  color: #6f7287;
 }
 
 .calendar__tasks {
