@@ -1,4 +1,4 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   AlarmSettings,
@@ -11,18 +11,25 @@ import type {
   Tag,
   HomeDateTheme,
 } from '../types/models'
-import { createDefaultState, STATE_VERSION } from '../services/storage'
-import { firebaseApp } from '../services/firebase'
+import { STATE_VERSION } from '../services/storage'
 import {
-  getDatabase,
-  ref as dbRef,
   onValue,
   get,
   set,
+  update,
   type DatabaseReference,
 } from 'firebase/database'
 import { createId } from '../utils/id'
 import { isDueToday } from '../utils/dates'
+import { useAuthStore } from './auth'
+import {
+  userMainTasksRef,
+  userPreferencesRef,
+  userRootRef,
+  userSubTasksRef,
+  userTagsRef,
+  userVersionRef,
+} from '../services/userDatabase'
 
 const TAG_COLORS = ['#5577ff', '#ff9d6c', '#52a79c', '#7d4eff', '#3bb2e3', '#f67599']
 
@@ -37,19 +44,43 @@ const DEFAULT_PREFERENCES: PreferenceState = {
   },
 }
 
-const database = getDatabase(firebaseApp)
-const WORKSPACE_ROOT = 'workspace'
-const workspaceRef = dbRef(database, WORKSPACE_ROOT)
-const tagsRef = dbRef(database, `${WORKSPACE_ROOT}/tags`)
-const tasksRef = dbRef(database, `${WORKSPACE_ROOT}/tasks`)
-const subtasksRef = dbRef(database, `${WORKSPACE_ROOT}/subtasks`)
-const preferencesRef = dbRef(database, `${WORKSPACE_ROOT}/preferences`)
+interface WorkspaceSnapshotPayload {
+  version?: number
+  tags?: Record<string, Tag>
+  tasks?: Record<string, MainTask>
+  mainTasks?: Record<string, MainTask>
+  subtasks?: Record<string, SubTask>
+  subTasks?: Record<string, SubTask>
+  preferences?: PreferenceState | null
+}
+
+let workspaceRootRef: DatabaseReference | null = null
+let tagsRef: DatabaseReference | null = null
+let mainTasksRef: DatabaseReference | null = null
+let subtasksRef: DatabaseReference | null = null
+let preferencesRef: DatabaseReference | null = null
+let versionRef: DatabaseReference | null = null
+let workspaceUnsubscribe: (() => void) | null = null
+let currentUid: string | null = null
 
 export const useWorkspaceStore = defineStore('workspace', () => {
   const state = reactive(createBlankWorkspaceState()) as PersistedAppState
   const workspaceReady = ref(false)
   const workspaceError = ref<string | null>(null)
-  let hasStartedSync = false
+  const auth = useAuthStore()
+
+  watch(
+    () => auth.session?.id ?? null,
+    (uid) => {
+      if (uid === currentUid) return
+      currentUid = uid
+      stopWorkspaceSync()
+      if (uid) {
+        void startWorkspaceSync(uid)
+      }
+    },
+    { immediate: true },
+  )
 
   const allTags = computed<Tag[]>(() =>
     Object.values(state.tags).sort((a, b) => {
@@ -94,13 +125,17 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   )
 
   function resetWorkspace() {
-    const fresh = createDefaultState()
+    const fresh = createBlankWorkspaceState()
     state.version = fresh.version
     overwriteRecord(state.tags, fresh.tags)
     overwriteRecord(state.tasks, fresh.tasks)
     overwriteRecord(state.subtasks, fresh.subtasks)
     applyPreferences(fresh.preferences)
-    queueSet(workspaceRef, fresh, 'reset workspace')
+    queueSet(tagsRef, fresh.tags, 'reset tags')
+    queueSet(mainTasksRef, fresh.tasks, 'reset main tasks')
+    queueSet(subtasksRef, fresh.subtasks, 'reset subtasks')
+    queueSet(preferencesRef, fresh.preferences, 'reset preferences')
+    queueSet(versionRef, fresh.version, 'reset workspace version')
   }
 
   function createTag(name: string): Tag {
@@ -307,8 +342,6 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     syncPreferences()
   }
 
-  startWorkspaceSync()
-
   return {
     state,
     workspaceReady,
@@ -339,43 +372,89 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     updatePreferences,
   }
 
-  function startWorkspaceSync() {
-    if (hasStartedSync) return
-    hasStartedSync = true
+  async function startWorkspaceSync(uid: string) {
+    workspaceRootRef = userRootRef(uid)
+    tagsRef = userTagsRef(uid)
+    mainTasksRef = userMainTasksRef(uid)
+    subtasksRef = userSubTasksRef(uid)
+    preferencesRef = userPreferencesRef(uid)
+    versionRef = userVersionRef(uid)
+    workspaceReady.value = false
+    workspaceError.value = null
 
-    void (async () => {
-      try {
-        await ensureWorkspaceSeed()
-      } catch (error) {
-        console.error('Failed to ensure workspace data', error)
-        workspaceError.value = '데이터를 불러오지 못했습니다.'
-      }
-
-      onValue(
-        workspaceRef,
-        (snapshot) => {
-          const payload = snapshot.val() as Partial<PersistedAppState> | null
-          applyWorkspaceSnapshot(payload)
-          workspaceReady.value = true
-          workspaceError.value = null
-        },
-        (error) => {
-          console.error('Workspace realtime sync error', error)
-          workspaceError.value = error.message
-        },
-      )
-    })()
-  }
-
-  async function ensureWorkspaceSeed() {
-    const snapshot = await get(workspaceRef)
-    if (!snapshot.exists()) {
-      const defaults = createDefaultState()
-      await set(workspaceRef, defaults)
+    try {
+      await ensureWorkspaceSeed(workspaceRootRef)
+    } catch (error) {
+      console.error('Failed to ensure workspace data', error)
+      workspaceError.value = '데이터를 불러오지 못했습니다.'
     }
+
+    if (currentUid !== uid || !workspaceRootRef) {
+      return
+    }
+
+    workspaceUnsubscribe = onValue(
+      workspaceRootRef,
+      (snapshot) => {
+        const payload = snapshot.val() as WorkspaceSnapshotPayload | null
+        applyWorkspaceSnapshot(payload)
+        workspaceReady.value = true
+        workspaceError.value = null
+      },
+      (error) => {
+        console.error('Workspace realtime sync error', error)
+        workspaceError.value = error.message
+      },
+    )
   }
 
-  function applyWorkspaceSnapshot(payload: Partial<PersistedAppState> | null) {
+  function stopWorkspaceSync() {
+    workspaceUnsubscribe?.()
+    workspaceUnsubscribe = null
+    workspaceRootRef = null
+    tagsRef = null
+    mainTasksRef = null
+    subtasksRef = null
+    preferencesRef = null
+    versionRef = null
+    workspaceReady.value = false
+    workspaceError.value = null
+    applyWorkspaceSnapshot(null)
+  }
+
+  async function ensureWorkspaceSeed(reference: DatabaseReference | null) {
+    if (!reference) return
+    const snapshot = await get(reference)
+    let needsVersion = true
+    let needsTags = true
+    let needsMainTasks = true
+    let needsSubTasks = true
+    let needsPreferences = true
+
+    if (snapshot.exists()) {
+      needsVersion = !snapshot.child('version').exists()
+      needsTags = !snapshot.child('tags').exists()
+      needsMainTasks = !snapshot.child('mainTasks').exists()
+      needsSubTasks = !snapshot.child('subTasks').exists()
+      needsPreferences = !snapshot.child('preferences').exists()
+    }
+
+    if (!needsVersion && !needsTags && !needsMainTasks && !needsSubTasks && !needsPreferences) {
+      return
+    }
+
+    const defaults = createBlankWorkspaceState()
+    const updates: Record<string, unknown> = {}
+    if (needsVersion) updates.version = defaults.version
+    if (needsTags) updates.tags = defaults.tags
+    if (needsMainTasks) updates.mainTasks = defaults.tasks
+    if (needsSubTasks) updates.subTasks = defaults.subtasks
+    if (needsPreferences) updates.preferences = defaults.preferences
+
+    await update(reference, updates)
+  }
+
+  function applyWorkspaceSnapshot(payload: WorkspaceSnapshotPayload | null) {
     if (!payload) {
       const blank = createBlankWorkspaceState()
       state.version = blank.version
@@ -387,10 +466,13 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     }
 
     state.version = payload.version ?? STATE_VERSION
-    overwriteRecord(state.tags, (payload.tags ?? {}) as Record<string, Tag>)
-    overwriteRecord(state.tasks, (payload.tasks ?? {}) as Record<string, MainTask>)
-    overwriteRecord(state.subtasks, (payload.subtasks ?? {}) as Record<string, SubTask>)
-    applyPreferences(payload.preferences)
+    const remoteTags = (payload.tags ?? {}) as Record<string, Tag>
+    const remoteTasks = (payload.mainTasks ?? payload.tasks ?? {}) as Record<string, MainTask>
+    const remoteSubTasks = (payload.subTasks ?? payload.subtasks ?? {}) as Record<string, SubTask>
+    overwriteRecord(state.tags, remoteTags)
+    overwriteRecord(state.tasks, remoteTasks)
+    overwriteRecord(state.subtasks, remoteSubTasks)
+    applyPreferences(payload.preferences ?? undefined)
   }
 
   function syncTags() {
@@ -398,7 +480,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function syncTasks() {
-    queueSet(tasksRef, state.tasks, 'sync tasks')
+    queueSet(mainTasksRef, state.tasks, 'sync main tasks')
   }
 
   function syncSubTasks() {
@@ -423,7 +505,8 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     Object.assign(state.preferences.alarm, updates)
   }
 
-  function queueSet(reference: DatabaseReference, payload: unknown, context: string) {
+  function queueSet(reference: DatabaseReference | null, payload: unknown, context: string) {
+    if (!reference) return
     set(reference, cloneValue(payload)).catch((error) => {
       console.error(`[Workspace] Failed to ${context}`, error)
       workspaceError.value = error?.message ?? '데이터 동기화에 실패했습니다.'

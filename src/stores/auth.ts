@@ -5,13 +5,16 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signOut as firebaseSignOut,
   updateProfile as firebaseUpdateProfile,
   deleteUser,
+  reauthenticateWithPopup,
 } from 'firebase/auth'
 import type { UserProfile } from '../types/models'
 import { AuthProvider } from '../types/models'
 import { firebaseAuth } from '../services/firebase'
+import { upsertUserProfile } from '../services/userDatabase'
 
 const readyResolvers: Array<() => void> = []
 
@@ -26,6 +29,11 @@ export const useAuthStore = defineStore('auth', () => {
     (user) => {
       session.value = mapFirebaseUser(user)
       authError.value = null
+      if (session.value) {
+        void upsertUserProfile(session.value).catch((error) => {
+          console.error('Failed to sync user profile to database', error)
+        })
+      }
       markReady(isReady)
     },
     (error) => {
@@ -39,11 +47,14 @@ export const useAuthStore = defineStore('auth', () => {
   async function signInWithGoogle() {
     isAuthenticating.value = true
     authError.value = null
-    const provider = new GoogleAuthProvider()
-    provider.setCustomParameters({ prompt: 'select_account' })
+    const provider = createGoogleProvider()
     try {
       await signInWithPopup(firebaseAuth, provider)
     } catch (error) {
+      if (getFirebaseErrorCode(error) === 'auth/popup-blocked') {
+        await signInWithRedirect(firebaseAuth, provider)
+        return
+      }
       authError.value = extractAuthError(error)
       throw error
     } finally {
@@ -61,6 +72,11 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await firebaseUpdateProfile(user, { displayName: partial.name })
       session.value = mapFirebaseUser(user)
+      if (session.value) {
+        void upsertUserProfile(session.value).catch((error) => {
+          console.error('Failed to update user profile in database', error)
+        })
+      }
     } catch (error) {
       authError.value = extractAuthError(error)
       throw error
@@ -71,7 +87,8 @@ export const useAuthStore = defineStore('auth', () => {
     const user = firebaseAuth.currentUser
     if (!user) return
     try {
-      await deleteUser(user)
+      await reauthenticateWithGoogle(user)
+      await deleteUser(user as User)
       session.value = null
     } catch (error) {
       authError.value = extractAuthError(error)
@@ -121,6 +138,11 @@ function mapFirebaseUser(user: User | null): UserProfile | null {
 }
 
 function extractAuthError(error: unknown): string {
+  const code = getFirebaseErrorCode(error)
+  if (code) {
+    const friendly = firebaseErrorMessages[code]
+    if (friendly) return friendly
+  }
   if (!error) return '알 수 없는 오류가 발생했습니다.'
   if (typeof error === 'string') return error
   if (error instanceof Error) return error.message || '알 수 없는 오류가 발생했습니다.'
@@ -132,4 +154,28 @@ function pickAvatarColor(seed: string): string {
   const charCode = seed.charCodeAt(0) || 0
   const index = palette.length ? charCode % palette.length : 0
   return palette[index] ?? '#5577ff'
+}
+
+async function reauthenticateWithGoogle(user: User) {
+  const provider = createGoogleProvider()
+  await reauthenticateWithPopup(user, provider)
+}
+
+function createGoogleProvider() {
+  const provider = new GoogleAuthProvider()
+  provider.setCustomParameters({ prompt: 'select_account' })
+  return provider
+}
+
+function getFirebaseErrorCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null
+  if (!('code' in error)) return null
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : null
+}
+
+const firebaseErrorMessages: Record<string, string> = {
+  'auth/popup-blocked': '브라우저가 팝업을 차단했어요. 팝업을 허용하거나 다른 브라우저에서 다시 시도해주세요.',
+  'auth/popup-closed-by-user': '로그인 팝업이 닫혀 연동 해제를 완료하지 못했어요. 다시 시도해주세요.',
+  'auth/requires-recent-login': '보안을 위해 다시 로그인한 뒤 연동 해제를 시도해주세요.',
 }
