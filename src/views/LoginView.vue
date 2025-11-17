@@ -59,6 +59,7 @@ function useDemoAccount() {
           >
             Google
           </button>
+          <!--
           <button
             type="button"
             :class="{ active: provider === AuthProvider.KAKAO }"
@@ -73,6 +74,7 @@ function useDemoAccount() {
           >
             Naver
           </button>
+          -->
         </div>
         <label>
           이름

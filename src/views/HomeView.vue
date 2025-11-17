@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import AppScaffold from '../components/layout/AppScaffold.vue'
@@ -10,19 +9,8 @@ import { useWorkspaceStore } from '../stores/workspace'
 import type { MainTask, SubTask } from '../types/models'
 
 const workspace = useWorkspaceStore()
-const { dueTodayMain, dueTodaySub, allMainTasks, visibleTags } = storeToRefs(workspace)
+const { dueTodayMain, dueTodaySub, visibleTags } = storeToRefs(workspace)
 const router = useRouter()
-
-const overviewStats = computed(() => {
-  const total = allMainTasks.value.length
-  const completed = allMainTasks.value.filter((task) => task.isCompleted).length
-  const tags = visibleTags.value.length
-  return [
-    { label: '전체 테스크', value: total },
-    { label: '완료됨', value: completed },
-    { label: '태그', value: tags },
-  ]
-})
 
 function openTask(task: MainTask) {
   router.push({ name: 'task-detail', params: { id: task.id } })
@@ -39,13 +27,6 @@ function toggleSub(updated: SubTask) {
 
 <template>
   <AppScaffold title="오늘의 흐름" description="마감이 임박한 작업부터 진행률까지 한눈에 정리했어요.">
-    <div class="overview">
-      <div v-for="stat in overviewStats" :key="stat.label" class="overview__card card-surface">
-        <p>{{ stat.label }}</p>
-        <strong>{{ stat.value }}</strong>
-      </div>
-    </div>
-
     <section class="home-section card-surface">
       <header>
         <div>
@@ -94,29 +75,6 @@ function toggleSub(updated: SubTask) {
 </template>
 
 <style scoped>
-.overview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 1rem;
-}
-
-.overview__card {
-  padding: 1.2rem 1.4rem;
-  border-radius: 20px;
-}
-
-.overview__card p {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-}
-
-.overview__card strong {
-  font-size: 1.9rem;
-  font-weight: 700;
-  display: block;
-  margin-top: 0.45rem;
-}
-
 .home-section {
   padding: 1.75rem;
   border-radius: 32px;

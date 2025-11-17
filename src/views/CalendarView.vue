@@ -43,6 +43,7 @@ type DaySubTask = {
   bgColor: string
   mainTitle: string
   mainTaskId: string
+  isCompleted: boolean
   position: RangePosition
 }
 
@@ -64,6 +65,7 @@ type WeekBar = {
   bgColor: string
   mainTitle: string
   mainTaskId: string
+  isCompleted: boolean
   truncatedStart: boolean
   truncatedEnd: boolean
 }
@@ -93,6 +95,7 @@ const subTasksByDate = computed(() => {
         bgColor: translucent,
         mainTitle: parent?.title || '메인 테스크 없음',
         mainTaskId: subTask.mainTaskId,
+        isCompleted: subTask.isCompleted,
         position: segment.position,
       })
     })
@@ -210,6 +213,10 @@ function goToTask(taskId?: string) {
   router.push({ name: 'task-detail', params: { id: taskId } })
 }
 
+function toggleSubTask(task: { id: string; isCompleted: boolean }) {
+  workspace.toggleSubCompletion(task.id, !task.isCompleted)
+}
+
 function handleTimelineScroll() {
   if (viewMode.value !== 'timeline') return
   const container = timelineListRef.value
@@ -309,6 +316,7 @@ function buildWeekBars(weekDays: CalendarDay[]) {
           bgColor: segment.bgColor,
           mainTitle: segment.mainTitle,
           mainTaskId: segment.mainTaskId,
+          isCompleted: segment.isCompleted,
           truncatedStart: !(segment.position === 'start' || segment.position === 'single'),
           truncatedEnd: !(segment.position === 'end' || segment.position === 'single'),
         })
@@ -424,23 +432,30 @@ function toTranslucent(hex: string, alpha = 0.18) {
                 <div
                   v-for="bar in week.bars"
                   :key="bar.id + week.id + bar.row"
-                  class="calendar__week-bar"
+                  :class="['calendar__week-bar', { 'calendar__week-bar--done': bar.isCompleted }]"
                   :data-truncated-start="bar.truncatedStart"
                   :data-truncated-end="bar.truncatedEnd"
                   :style="{
                     gridColumn: `${bar.start + 1} / span ${bar.span}`,
                     gridRow: `${bar.row + 2}`,
                   }"
-                  role="button"
-                  tabindex="0"
-                  @click="goToTask(bar.mainTaskId)"
-                  @keydown.enter.prevent="goToTask(bar.mainTaskId)"
                 >
-                  <span class="calendar__subtask-indicator"></span>
-                  <p>
-                    {{ bar.content }}
+                  <button type="button" class="calendar__week-body" @click="goToTask(bar.mainTaskId)">
+                    <div class="calendar__week-header">
+                      <label class="calendar__week-checkbox" @click.stop>
+                        <input
+                          type="checkbox"
+                          :checked="bar.isCompleted"
+                          @change.stop="toggleSubTask(bar)"
+                        />
+                        <span />
+                      </label>
+                      <p :class="['calendar__week-title', { 'calendar__week-title--done': bar.isCompleted }]">
+                        {{ bar.content }}
+                      </p>
+                    </div>
                     <small>{{ bar.mainTitle }}</small>
-                  </p>
+                  </button>
                 </div>
               </template>
             </div>
@@ -459,52 +474,67 @@ function toTranslucent(hex: string, alpha = 0.18) {
             :ref="(el) => setTimelineEntryRef(entry.key, el)"
             :class="['timeline-entry', { 'timeline-entry--selected': selectedKey === entry.key }]"
           >
-            <button type="button" class="timeline-entry__header" @click="selectDay(entry.key)">
-              <span class="timeline-entry__date">{{ entry.label }}</span>
+            <button type="button" class="timeline-entry__date" @click="selectDay(entry.key)">
+              {{ entry.label }}
             </button>
-            <div v-if="entry.tasks.length" class="timeline-entry__tasks">
-              <button
-                v-for="task in entry.tasks"
-                :key="task.id"
-                class="timeline-entry__task"
-                type="button"
-                @click="goToTask(task.mainTaskId)"
-              >
-                <span class="timeline-entry__indicator"></span>
-                <div>
-                  <p class="timeline-entry__task-title">{{ task.content }}</p>
+            <ul v-if="entry.tasks.length" class="timeline-entry__tasks">
+              <li v-for="task in entry.tasks" :key="task.id" class="timeline-entry__task">
+                <label class="timeline-entry__checkbox">
+                  <input
+                    type="checkbox"
+                    :checked="task.isCompleted"
+                    @change.stop="toggleSubTask(task)"
+                  />
+                  <span />
+                </label>
+                <button
+                  type="button"
+                  class="timeline-entry__task-body"
+                  @click="goToTask(task.mainTaskId)"
+                >
+                  <p
+                    :class="[
+                      'timeline-entry__task-title',
+                      { 'timeline-entry__task-title--done': task.isCompleted },
+                    ]"
+                  >
+                    {{ task.content }}
+                  </p>
                   <small>{{ task.mainTitle }}</small>
-                </div>
-              </button>
-            </div>
+                </button>
+              </li>
+            </ul>
             <p v-else class="timeline-entry__empty">추가된 일정이 없습니다.</p>
           </article>
         </div>
       </aside>
     </section>
 
-    <section class="calendar card-surface">
+    <section v-if="viewMode === 'calendar'" class="calendar card-surface calendar-selected">
       <header>
         <h2>{{ selectedSubTasks.length ? '선택한 날짜의 서브 테스크' : '선택된 날짜에 작업이 없어요' }}</h2>
       </header>
-      <ul v-if="selectedSubTasks.length" class="calendar__tasks">
-        <li
-          v-for="task in selectedSubTasks"
-          :key="task.id + '-detail'"
-          role="button"
-          tabindex="0"
-          @click="goToTask(task.mainTaskId)"
-          @keydown.enter.prevent="goToTask(task.mainTaskId)"
-        >
-          <span class="dot" :style="{ backgroundColor: task.color }"></span>
-          <div>
-            <p class="title">{{ task.content || '내용 없음' }}</p>
+      <ul v-if="selectedSubTasks.length" class="calendar-selected__list">
+        <li v-for="task in selectedSubTasks" :key="task.id + '-summary'">
+          <label class="calendar-task__checkbox">
+            <input
+              type="checkbox"
+              :checked="task.isCompleted"
+              @change.stop="toggleSubTask(task)"
+            />
+            <span />
+          </label>
+          <button type="button" class="calendar-task__body" @click="goToTask(task.mainTaskId)">
+            <p :class="['calendar-task__title', { 'calendar-task__title--done': task.isCompleted }]">
+              {{ task.content || '내용 없음' }}
+            </p>
             <small>{{ task.mainTitle }}</small>
-          </div>
+          </button>
         </li>
       </ul>
-      <p v-else class="calendar__empty">다른 날을 선택하거나 새 테스크를 추가해보세요.</p>
+      <p v-else class="calendar__empty">다른 날짜를 눌러 확인하거나 새 서브 테스크를 추가해보세요.</p>
     </section>
+
   </AppScaffold>
 </template>
 
@@ -640,8 +670,8 @@ function toTranslucent(hex: string, alpha = 0.18) {
 
 .calendar__week-bar {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.85rem;
   padding: 0.95rem 1.1rem;
   border-radius: 18px;
   background-color: #fff;
@@ -649,6 +679,10 @@ function toTranslucent(hex: string, alpha = 0.18) {
   color: #1b1e31;
   font-size: 0.95rem;
   min-height: 0;
+}
+
+.calendar__week-bar--done {
+  opacity: 0.7;
 }
 
 .calendar__week-bar[data-truncated-start='true'] {
@@ -661,23 +695,65 @@ function toTranslucent(hex: string, alpha = 0.18) {
   border-bottom-right-radius: 6px;
 }
 
-.calendar__subtask-indicator {
-  width: 6px;
-  border-radius: 999px;
+.calendar__week-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
   flex-shrink: 0;
-  align-self: stretch;
-  background-color: #000;
 }
 
-.calendar__week-bar p {
-  font-size: clamp(0.95rem, 0.8vw + 0.55rem, 1.1rem);
-  line-height: 1.35;
+.calendar__week-checkbox span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.calendar__week-checkbox input {
+  display: none;
+}
+
+.calendar__week-checkbox input:checked + span {
+  opacity: 1;
+}
+
+.calendar__week-body {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
   display: flex;
   flex-direction: column;
-  word-break: break-word;
+  gap: 0.2rem;
+  flex: 1;
 }
 
-.calendar__week-bar p small {
+.calendar__week-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.calendar__week-title {
+  font-size: clamp(0.95rem, 0.8vw + 0.55rem, 1.1rem);
+  font-weight: 600;
+}
+
+.calendar__week-title--done {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.calendar__week-body small {
   font-size: clamp(0.75rem, 0.35vw + 0.5rem, 0.85rem);
   color: #6f7287;
 }
@@ -761,54 +837,85 @@ function toTranslucent(hex: string, alpha = 0.18) {
   box-shadow: 0 8px 22px rgba(25, 30, 58, 0.12);
 }
 
-.timeline-entry__header {
-  border: 1px solid rgba(25, 30, 58, 0.12);
-  background: #f4f5f7;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  color: inherit;
+.timeline-entry__date {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: clamp(0.95rem, 0.8vw + 0.45rem, 1.2rem);
   font-weight: 600;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-  border-radius: 16px;
-  padding: 0.65rem 0.9rem;
 }
 
-.timeline-entry__header:hover {
-  background: #ebedef;
+.timeline-entry__date:hover {
+  text-decoration: underline;
 }
 
 .timeline-entry__tasks {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.4rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
 
 .timeline-entry__task {
   display: flex;
-  gap: 0.65rem;
-  padding: 0.85rem 1rem;
-  border-radius: 16px;
-  border: 1px solid rgba(25, 30, 58, 0.08);
-  background: #f7f8ff;
+  gap: 0.75rem;
   align-items: center;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
+  padding: 0.35rem 0;
 }
 
-.timeline-entry__indicator {
-  width: 6px;
-  border-radius: 999px;
-  align-self: stretch;
-  background: #111;
+.timeline-entry__checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.timeline-entry__checkbox span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.timeline-entry__checkbox input {
+  display: none;
+}
+
+.timeline-entry__checkbox input:checked + span {
+  opacity: 1;
+}
+
+.timeline-entry__task-body {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+  flex: 1;
+  color: inherit;
 }
 
 .timeline-entry__task-title {
   font-weight: 600;
   margin-bottom: 0.15rem;
   font-size: clamp(1rem, 0.8vw + 0.55rem, 1.3rem);
+}
+
+.timeline-entry__task-title--done {
+  text-decoration: line-through;
+  color: var(--text-muted);
 }
 
 .timeline-entry__tasks small {
@@ -821,46 +928,83 @@ function toTranslucent(hex: string, alpha = 0.18) {
   color: #6f7287;
 }
 
-.calendar__tasks {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.calendar__tasks li {
-  display: flex;
-  gap: 0.8rem;
-  align-items: center;
-  cursor: pointer;
-}
-
-.calendar__tasks .title {
-  font-weight: 600;
-  font-size: clamp(1rem, 0.8vw + 0.55rem, 1.3rem);
-}
-
-.calendar__tasks small {
-  font-size: clamp(0.85rem, 0.4vw + 0.5rem, 1rem);
-  color: var(--text-secondary);
-}
-
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-flex;
-}
-
-.calendar__empty {
-  color: var(--text-muted);
-}
-
 .calendar-actions {
   display: inline-flex;
   gap: 0.8rem;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.calendar-selected__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-selected__list li {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.calendar-task__checkbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.calendar-task__checkbox span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.calendar-task__checkbox input {
+  display: none;
+}
+
+.calendar-task__checkbox input:checked + span {
+  opacity: 1;
+}
+
+.calendar-task__body {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  flex: 1;
+}
+
+.calendar-task__title {
+  font-weight: 600;
+  font-size: clamp(1rem, 0.8vw + 0.5rem, 1.2rem);
+}
+
+.calendar-task__title--done {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.calendar-task__body small {
+  font-size: clamp(0.85rem, 0.35vw + 0.5rem, 1rem);
+  color: var(--text-secondary);
+}
+
+.calendar__empty {
+  color: var(--text-muted);
 }
 </style>

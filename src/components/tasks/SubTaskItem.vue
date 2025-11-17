@@ -66,8 +66,8 @@ const dueLabel = computed(() => {
 }
 
 .sub-task__checkbox {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: 2px solid var(--border-color);
   display: inline-flex;
@@ -77,8 +77,8 @@ const dueLabel = computed(() => {
 }
 
 .sub-task__checkbox span {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
   opacity: 0;
