@@ -294,7 +294,7 @@ function submit() {
 
 .sub-form__main-tasks p,
 .sub-form__priority p {
-  font-size: 1rem;
+  font-size: var(--text-size-base);
   font-weight: 700;
   margin: 0;
 }
@@ -425,7 +425,7 @@ function submit() {
 
 .sub-form__helper {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-size-caption);
 }
 
 .sub-form__range {
@@ -442,7 +442,7 @@ function submit() {
 }
 
 .sub-form__range strong {
-  font-size: 1rem;
+  font-size: var(--text-size-base);
 }
 
 .sub-form__range-actions {

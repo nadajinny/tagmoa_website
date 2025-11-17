@@ -9,7 +9,9 @@ defineProps<{
   <div class="empty-state card-surface">
     <div class="empty-state__icon">🌱</div>
     <h4>{{ title }}</h4>
-    <p>{{ message }}</p>
+    <p v-if="message" class="text-support">
+      {{ message }}
+    </p>
     <slot />
   </div>
 </template>

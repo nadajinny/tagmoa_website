@@ -160,7 +160,7 @@ function toggleNav() {
 
 .side-panel__placeholder {
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--text-size-support);
 }
 
 @media (max-width: 900px) {

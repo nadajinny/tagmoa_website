@@ -46,7 +46,7 @@ const props = withDefaults(
 }
 
 .scaffold__header h1 {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(calc(2rem / 1.3), 4vw, calc(3rem / 1.3));
   margin-top: 0.5rem;
 }
 
@@ -54,6 +54,8 @@ const props = withDefaults(
   color: var(--text-secondary);
   margin-top: 0.5rem;
   max-width: 46ch;
+  font-size: var(--text-size-base);
+  line-height: 1.7;
 }
 
 .scaffold__body--padded {

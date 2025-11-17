@@ -129,7 +129,7 @@ function createSubTask() {
   border: 1px solid var(--border-color);
   border-radius: 16px;
   padding: 0.9rem 1rem;
-  font-size: 1rem;
+  font-size: var(--text-size-base);
 }
 
 .toggle {

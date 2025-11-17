@@ -122,7 +122,7 @@ const activeName = computed(() => (route.name as string) ?? 'home')
   gap: 0.75rem;
   padding: 0.75rem 0.6rem;
   border-radius: 16px;
-  color: var(--text-muted);
+  color: var(--text-primary);
   font-weight: 600;
   transition: color 0.2s ease, background-color 0.2s ease;
 }
