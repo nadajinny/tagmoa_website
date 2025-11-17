@@ -133,7 +133,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     applyPreferences(fresh.preferences)
     queueSet(tagsRef, fresh.tags, 'reset tags')
     queueSet(mainTasksRef, fresh.tasks, 'reset main tasks')
-    queueSet(subtasksRef, fresh.subtasks, 'reset subtasks')
+    queueSet(subtasksRef, buildNestedSubTasks(fresh.subtasks), 'reset subtasks')
     queueSet(preferencesRef, fresh.preferences, 'reset preferences')
     queueSet(versionRef, fresh.version, 'reset workspace version')
   }
@@ -448,7 +448,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     if (needsVersion) updates.version = defaults.version
     if (needsTags) updates.tags = defaults.tags
     if (needsMainTasks) updates.mainTasks = defaults.tasks
-    if (needsSubTasks) updates.subTasks = defaults.subtasks
+    if (needsSubTasks) updates.subTasks = buildNestedSubTasks(defaults.subtasks)
     if (needsPreferences) updates.preferences = defaults.preferences
 
     await update(reference, updates)
@@ -468,7 +468,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     state.version = payload.version ?? STATE_VERSION
     const remoteTags = (payload.tags ?? {}) as Record<string, Tag>
     const remoteTasks = (payload.mainTasks ?? payload.tasks ?? {}) as Record<string, MainTask>
-    const remoteSubTasks = (payload.subTasks ?? payload.subtasks ?? {}) as Record<string, SubTask>
+    const remoteSubTasks = flattenSubTasksPayload(payload.subTasks ?? payload.subtasks ?? null)
     overwriteRecord(state.tags, remoteTags)
     overwriteRecord(state.tasks, remoteTasks)
     overwriteRecord(state.subtasks, remoteSubTasks)
@@ -484,7 +484,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   }
 
   function syncSubTasks() {
-    queueSet(subtasksRef, state.subtasks, 'sync subtasks')
+    queueSet(subtasksRef, buildNestedSubTasks(state.subtasks), 'sync subtasks')
   }
 
   function syncPreferences() {
@@ -542,4 +542,73 @@ function cloneValue<T>(value: T): T {
     return value
   }
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+type RemoteSubTasksPayload = Record<string, unknown> | null | undefined
+
+function flattenSubTasksPayload(payload: RemoteSubTasksPayload): Record<string, SubTask> {
+  if (!payload) {
+    return {}
+  }
+  const flattened: Record<string, SubTask> = {}
+
+  Object.entries(payload).forEach(([maybeMainId, candidate]) => {
+    if (!isPlainRecord(candidate)) {
+      return
+    }
+
+    if (isSubTaskShape(candidate)) {
+      const normalized = normalizeRemoteSubTask(candidate, maybeMainId)
+      flattened[normalized.id] = normalized
+      return
+    }
+
+    Object.entries(candidate).forEach(([subId, nested]) => {
+      if (!isPlainRecord(nested) || !isSubTaskShape(nested)) {
+        return
+      }
+      const normalized = normalizeRemoteSubTask(nested, subId, maybeMainId)
+      flattened[normalized.id] = normalized
+    })
+  })
+
+  return flattened
+}
+
+function buildNestedSubTasks(subtasks: Record<string, SubTask>) {
+  const nested: Record<string, Record<string, SubTask>> = {}
+  Object.values(subtasks).forEach((subTask) => {
+    if (!subTask.id || !subTask.mainTaskId) return
+    const bucket = nested[subTask.mainTaskId] ?? (nested[subTask.mainTaskId] = {})
+    bucket[subTask.id] = subTask
+  })
+  return nested
+}
+
+function isSubTaskShape(value: Record<string, unknown>): value is Partial<SubTask> {
+  return (
+    'content' in value ||
+    'priority' in value ||
+    'mainTaskId' in value ||
+    'alarmLeadMinutes' in value ||
+    'alarmEnabled' in value
+  )
+}
+
+function normalizeRemoteSubTask(
+  value: Partial<SubTask>,
+  fallbackId: string,
+  fallbackMainId?: string,
+): SubTask {
+  const normalized = { ...(value as SubTask) }
+  normalized.id = normalized.id && normalized.id.length ? normalized.id : fallbackId
+  normalized.mainTaskId =
+    normalized.mainTaskId && normalized.mainTaskId.length
+      ? normalized.mainTaskId
+      : fallbackMainId ?? normalized.mainTaskId ?? ''
+  return normalized
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }

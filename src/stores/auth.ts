@@ -14,7 +14,7 @@ import {
 import type { UserProfile } from '../types/models'
 import { AuthProvider } from '../types/models'
 import { firebaseAuth } from '../services/firebase'
-import { upsertUserProfile } from '../services/userDatabase'
+import { deleteUserData, upsertUserProfile } from '../services/userDatabase'
 
 const readyResolvers: Array<() => void> = []
 
@@ -88,6 +88,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!user) return
     try {
       await reauthenticateWithGoogle(user)
+      await deleteUserData(user.uid)
       await deleteUser(user as User)
       session.value = null
     } catch (error) {

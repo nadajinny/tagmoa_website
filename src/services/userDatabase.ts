@@ -1,4 +1,4 @@
-import { getDatabase, ref as dbRef, serverTimestamp, update } from 'firebase/database'
+import { getDatabase, ref as dbRef, remove, serverTimestamp, update } from 'firebase/database'
 import type { UserProfile } from '../types/models'
 import { firebaseApp } from './firebase'
 
@@ -42,4 +42,8 @@ export async function upsertUserProfile(profile: UserProfile) {
     lastLoginAt: serverTimestamp(),
   }
   await update(userProfileRef(profile.id), payload)
+}
+
+export function deleteUserData(uid: string) {
+  return remove(userRootRef(uid))
 }
