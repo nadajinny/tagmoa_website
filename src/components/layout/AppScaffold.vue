@@ -16,7 +16,6 @@ const props = withDefaults(
   <section class="scaffold app-max-width">
     <header class="scaffold__header">
       <div>
-        <p class="brand-pill">Tagmoa</p>
         <h1>{{ props.title }}</h1>
         <p v-if="props.description" class="scaffold__description">
           {{ props.description }}

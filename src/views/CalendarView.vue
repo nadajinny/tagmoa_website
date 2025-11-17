@@ -93,7 +93,7 @@ const subTasksByDate = computed(() => {
         content: subTask.content,
         color,
         bgColor: translucent,
-        mainTitle: parent?.title || '메인 테스크 없음',
+        mainTitle: parent?.title || '주요 일정 없음',
         mainTaskId: subTask.mainTaskId,
         isCompleted: subTask.isCompleted,
         position: segment.position,
@@ -367,7 +367,7 @@ function toTranslucent(hex: string, alpha = 0.18) {
 <template>
   <AppScaffold
     title="캘린더"
-    description="월간 흐름에서 테스크 마감일과 진행 중인 작업을 한 번에 확인하세요."
+    description="월간 흐름에서 일정 마감일과 진행 중인 작업을 한 번에 확인하세요."
   >
     <template #actions>
       <div class="calendar-actions">
@@ -389,8 +389,8 @@ function toTranslucent(hex: string, alpha = 0.18) {
         </div>
 
         <div class="calendar-actions__buttons">
-          <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
-          <button class="btn-link" type="button" @click="createSubTask">서브 테스크 추가</button>
+          <button class="btn-primary" type="button" @click="createMainTask">주요 일정 추가</button>
+          <button class="btn-link" type="button" @click="createSubTask">세부 일정 추가</button>
         </div>
       </div>
     </template>
@@ -512,7 +512,7 @@ function toTranslucent(hex: string, alpha = 0.18) {
 
     <section v-if="viewMode === 'calendar'" class="calendar card-surface calendar-selected">
       <header>
-        <h2>{{ selectedSubTasks.length ? '선택한 날짜의 서브 테스크' : '선택된 날짜에 작업이 없어요' }}</h2>
+        <h2>{{ selectedSubTasks.length ? '선택한 날짜의 세부 일정' : '선택된 날짜에 작업이 없어요' }}</h2>
       </header>
       <ul v-if="selectedSubTasks.length" class="calendar-selected__list">
         <li v-for="task in selectedSubTasks" :key="task.id + '-summary'">
@@ -532,7 +532,7 @@ function toTranslucent(hex: string, alpha = 0.18) {
           </button>
         </li>
       </ul>
-      <p v-else class="calendar__empty">다른 날짜를 눌러 확인하거나 새 서브 테스크를 추가해보세요.</p>
+      <p v-else class="calendar__empty">다른 날짜를 눌러 확인하거나 새 세부 일정을 추가해보세요.</p>
     </section>
 
   </AppScaffold>

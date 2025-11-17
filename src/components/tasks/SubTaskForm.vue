@@ -149,12 +149,12 @@ function submit() {
     <section class="sub-form__main-tasks">
       <header>
         <div>
-          <p>메인 테스크</p>
+          <p>주요 일정</p>
           <small>
             {{
               selectedMainTask
                 ? selectedMainTask.title || '제목 없음'
-                : '메인 테스크를 선택해주세요.'
+                : '주요 일정을 선택해주세요.'
             }}
           </small>
         </div>
@@ -175,7 +175,7 @@ function submit() {
           </div>
         </button>
       </div>
-      <p v-else class="sub-form__helper">먼저 메인 테스크를 생성하거나 완료를 해제해주세요.</p>
+      <p v-else class="sub-form__helper">먼저 주요 일정을 생성하거나 완료를 해제해주세요.</p>
     </section>
 
     <label>

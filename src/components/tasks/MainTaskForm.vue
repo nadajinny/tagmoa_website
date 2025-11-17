@@ -113,12 +113,12 @@ const tagOptions = computed(() => props.tags.filter((tag) => !tag.hidden))
   <form class="task-form" @submit.prevent="submit">
     <label>
       제목
-      <input v-model="title" type="text" placeholder="메인 테스크 이름" required />
+      <input v-model="title" type="text" placeholder="주요 일정 이름" required />
     </label>
 
     <label>
       설명
-      <textarea v-model="description" placeholder="테스크 설명"></textarea>
+      <textarea v-model="description" placeholder="일정 설명"></textarea>
     </label>
 
     <section class="task-form__range">

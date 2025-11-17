@@ -24,14 +24,14 @@ const emit = defineEmits<{
         <button class="fab-menu__item" type="button" @click="emit('create-main-task')">
           <span class="icon icon--main"></span>
           <div>
-            <p class="fab-menu__label">메인 테스크</p>
+            <p class="fab-menu__label">주요 일정</p>
             <small>큰 줄기의 목표와 기간을 설정해요.</small>
           </div>
         </button>
         <button class="fab-menu__item" type="button" @click="emit('create-sub-task')">
           <span class="icon icon--sub"></span>
           <div>
-            <p class="fab-menu__label">서브 테스크</p>
+            <p class="fab-menu__label">세부 일정</p>
             <small>세부 실행 단계를 쪼개서 관리하세요.</small>
           </div>
         </button>

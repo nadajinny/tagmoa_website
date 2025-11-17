@@ -31,7 +31,7 @@ function toggleSub(updated: SubTask) {
       <header>
         <div>
           <p class="pill-muted">Due Today</p>
-          <h2>오늘 마감 메인 테스크</h2>
+          <h2>오늘 마감 주요 일정</h2>
         </div>
         <button class="btn-link" type="button" @click="router.push({ name: 'tasks' })">
           전체 보기 →
@@ -49,8 +49,8 @@ function toggleSub(updated: SubTask) {
         />
         <EmptyState
           v-if="!dueTodayMain.length"
-          title="오늘 마감인 메인 테스크가 없어요"
-          message="테스크를 추가하거나 다른 날짜의 작업을 확인해주세요."
+          title="오늘 마감인 주요 일정이 없어요"
+          message="일정을 추가하거나 다른 날짜의 작업을 확인해주세요."
         />
       </div>
     </section>
@@ -59,7 +59,7 @@ function toggleSub(updated: SubTask) {
       <header>
         <div>
           <p class="pill-muted">Sub Tasks</p>
-          <h2>오늘 체크할 서브 테스크</h2>
+          <h2>오늘 체크할 세부 일정</h2>
         </div>
       </header>
       <div v-if="dueTodaySub.length" class="sub-list">
@@ -67,8 +67,8 @@ function toggleSub(updated: SubTask) {
       </div>
       <EmptyState
         v-else
-        title="오늘 완료할 서브 테스크가 없어요"
-        message="서브 테스크를 세분화하면 진행률을 빠르게 높일 수 있어요."
+        title="오늘 완료할 세부 일정이 없어요"
+        message="세부 일정을 세분화하면 진행률을 빠르게 높일 수 있어요."
       />
     </section>
   </AppScaffold>

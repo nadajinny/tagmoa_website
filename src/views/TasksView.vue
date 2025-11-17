@@ -65,13 +65,13 @@ function createSubTask() {
 
 <template>
   <AppScaffold
-    title="메인 테스크"
+    title="주요 일정"
     description="태그와 검색으로 원하는 프로젝트 흐름을 빠르게 찾아보세요."
   >
     <template #actions>
       <div class="task-actions">
-        <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
-        <button class="btn-link" type="button" @click="createSubTask">서브 테스크 추가</button>
+        <button class="btn-primary" type="button" @click="createMainTask">주요 일정 추가</button>
+        <button class="btn-link" type="button" @click="createSubTask">세부 일정 추가</button>
       </div>
     </template>
 
@@ -79,7 +79,7 @@ function createSubTask() {
       <input v-model="search" type="search" placeholder="제목, 설명으로 검색" />
       <label class="toggle">
         <input v-model="showCompleted" type="checkbox" />
-        완료된 테스크 표시
+        완료된 일정 표시
       </label>
       <div class="tags">
         <TagChip
@@ -109,8 +109,8 @@ function createSubTask() {
       />
       <EmptyState
         v-if="!filteredTasks.length"
-        title="조건에 맞는 테스크가 없어요"
-        message="검색어나 태그 필터를 조정해보거나 새 테스크를 추가해보세요."
+        title="조건에 맞는 일정이 없어요"
+        message="검색어나 태그 필터를 조정해보거나 새 일정을 추가해보세요."
       />
     </div>
   </AppScaffold>

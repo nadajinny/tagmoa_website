@@ -15,7 +15,7 @@ function toggleHidden(tagId: string) {
 }
 
 function deleteTag(tagId: string) {
-  if (!confirm('태그를 삭제할까요? 해당 태그가 연결된 테스크에서도 제거됩니다.')) return
+  if (!confirm('태그를 삭제할까요? 해당 태그가 연결된 일정에서도 제거됩니다.')) return
   workspace.deleteTag(tagId)
 }
 

@@ -48,7 +48,7 @@ function toggleMain() {
 
 function deleteTask() {
   if (!task.value) return
-  if (confirm('해당 메인 테스크와 서브 테스크를 모두 삭제할까요?')) {
+  if (confirm('해당 주요 일정과 세부 일정을 모두 삭제할까요?')) {
     workspace.deleteMainTask(task.value.id)
     router.push({ name: 'tasks' })
   }
@@ -77,7 +77,7 @@ function toggleSub(subTask: SubTask) {
 }
 
 function deleteSub(subTask: SubTask) {
-  if (!confirm('서브 테스크를 삭제할까요?')) return
+  if (!confirm('세부 일정을 삭제할까요?')) return
   workspace.deleteSubTask(subTask.id)
 }
 </script>
@@ -85,7 +85,7 @@ function deleteSub(subTask: SubTask) {
 <template>
   <AppScaffold
     v-if="task"
-    :title="task.title || '제목 없는 테스크'"
+    :title="task.title || '제목 없는 일정'"
     :description="task.description"
   >
     <div class="detail card-surface">
@@ -100,7 +100,7 @@ function deleteSub(subTask: SubTask) {
 
       <div class="detail__actions">
         <button class="btn-primary" type="button" @click="showEditMain = true">정보 수정</button>
-        <button type="button" class="ghost" @click="openSubForm()">서브 테스크 추가</button>
+        <button type="button" class="ghost" @click="openSubForm()">세부 일정 추가</button>
         <button type="button" class="ghost" @click="toggleMain">
           {{ task.isCompleted ? '완료 해제' : '완료 처리' }}
         </button>
@@ -110,7 +110,7 @@ function deleteSub(subTask: SubTask) {
 
     <section class="subtasks card-surface">
       <header>
-        <h2>서브 테스크</h2>
+        <h2>세부 일정</h2>
         <button class="btn-link" type="button" @click="openSubForm()">+ 추가</button>
       </header>
       <div v-if="subtasks.length">
@@ -125,18 +125,18 @@ function deleteSub(subTask: SubTask) {
       </div>
       <EmptyState
         v-else
-        title="아직 서브 테스크가 없어요"
+        title="아직 세부 일정이 없어요"
         message="작업을 더 작은 단위로 나누어 진행률을 관리하세요."
       />
     </section>
   </AppScaffold>
   <EmptyState
     v-else
-    title="존재하지 않는 테스크입니다."
+    title="존재하지 않는 일정입니다."
     message="목록으로 돌아가 다시 시도해주세요."
   />
 
-  <ModalSheet v-model="showEditMain" title="메인 테스크 수정">
+  <ModalSheet v-model="showEditMain" title="주요 일정 수정">
     <MainTaskForm
       :model-value="task"
       :tags="visibleTags"
@@ -145,7 +145,7 @@ function deleteSub(subTask: SubTask) {
     />
   </ModalSheet>
 
-  <ModalSheet v-model="showSubForm" title="서브 테스크 추가/수정">
+  <ModalSheet v-model="showSubForm" title="세부 일정 추가/수정">
     <SubTaskForm
       :model-value="editingSub"
       :main-tasks="prioritizedMainTasks"

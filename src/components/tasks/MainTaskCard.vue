@@ -57,7 +57,7 @@ const statusTone = computed(() => {
           <p class="task-card__status" :style="{ color: statusTone }">
             {{ statusText }}
           </p>
-          <h3>{{ task.title || '제목 없는 테스크' }}</h3>
+          <h3>{{ task.title || '제목 없는 일정' }}</h3>
         </div>
         <button
           class="task-card__toggle"
@@ -90,7 +90,7 @@ const statusTone = computed(() => {
           />
         </div>
         <span class="task-card__progress-label">
-          서브 {{ completedSubtasks }} / {{ totalSubtasks }}
+          세부 일정 {{ completedSubtasks }} / {{ totalSubtasks }}
         </span>
       </div>
     </div>

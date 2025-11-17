@@ -26,8 +26,8 @@ const alarm = computed(() => workspace.state.preferences.alarm)
 
 const onboardingSteps = [
   { title: '태그 생성', desc: '업무 흐름별 태그를 만들어 전체 그림을 잡아요.' },
-  { title: '메인 테스크 작성', desc: '큰 줄기의 목표를 메인 테스크로 정리합니다.' },
-  { title: '서브 테스크 분해', desc: '실행 단위의 서브 테스크로 세부 계획을 만듭니다.' },
+  { title: '주요 일정 작성', desc: '큰 줄기의 목표를 주요 일정으로 정리합니다.' },
+  { title: '세부 일정 분해', desc: '실행 단위의 세부 일정으로 세부 계획을 만듭니다.' },
 ]
 
 function saveProfile() {
@@ -79,7 +79,7 @@ function contactSupport() {
       <div class="settings__row">
         <label>
           <input type="checkbox" :checked="alarm.majorEnabled" @change="updateAlarm({ majorEnabled: !alarm.majorEnabled })" />
-          메인 테스크 알림
+          주요 일정 알림
         </label>
         <input
           type="time"
@@ -91,7 +91,7 @@ function contactSupport() {
       <div class="settings__row">
         <label>
           <input type="checkbox" :checked="alarm.subEnabled" @change="updateAlarm({ subEnabled: !alarm.subEnabled })" />
-          서브 테스크 알림
+          세부 일정 알림
         </label>
         <input
           type="time"

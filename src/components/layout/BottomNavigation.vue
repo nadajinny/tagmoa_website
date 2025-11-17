@@ -42,7 +42,7 @@ const activeName = computed(() => (route.name as string) ?? 'home')
     :class="{ 'side-nav--collapsed': props.collapsed }"
   >
     <div class="side-nav__header" v-if="!props.collapsed">
-      <p class="side-nav__title">탐모아</p>
+      <p class="side-nav__title">태그모아</p>
       <button class="side-nav__toggle" type="button" @click="emit('toggle')">
         <span class="bar"></span>
         <span class="bar"></span>

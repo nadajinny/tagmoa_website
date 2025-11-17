@@ -44,8 +44,8 @@ function saveSubTask(payload: SubTaskInput) {
 const panelOpen = computed(() => showMainForm.value || showSubForm.value)
 
 const panelTitle = computed(() => {
-  if (showMainForm.value) return '메인 테스크 추가/수정'
-  if (showSubForm.value) return '서브 테스크 추가/수정'
+  if (showMainForm.value) return '주요 일정 추가/수정'
+  if (showSubForm.value) return '세부 일정 추가/수정'
   return ''
 })
 
