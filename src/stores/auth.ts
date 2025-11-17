@@ -1,71 +1,131 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { AuthProvider, UserProfile } from '../types/models'
-import { createId } from '../utils/id'
+import type { User } from 'firebase/auth'
+import {
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  updateProfile as firebaseUpdateProfile,
+  deleteUser,
+} from 'firebase/auth'
+import type { UserProfile } from '../types/models'
+import { AuthProvider } from '../types/models'
+import { firebaseAuth } from '../services/firebase'
 
-const AUTH_STORAGE_KEY = 'tagmoa-web-auth'
-
-function loadSession(): UserProfile | null {
-  if (typeof window === 'undefined') return null
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as UserProfile
-  } catch {
-    return null
-  }
-}
-
-function persistSession(session: UserProfile | null) {
-  if (typeof window === 'undefined') return
-  if (!session) {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY)
-    return
-  }
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
-}
+const readyResolvers: Array<() => void> = []
 
 export const useAuthStore = defineStore('auth', () => {
-  const session = ref<UserProfile | null>(loadSession())
+  const session = ref<UserProfile | null>(null)
+  const isReady = ref(false)
+  const isAuthenticating = ref(false)
+  const authError = ref<string | null>(null)
 
-  watch(
-    session,
-    (value) => {
-      persistSession(value)
+  onAuthStateChanged(
+    firebaseAuth,
+    (user) => {
+      session.value = mapFirebaseUser(user)
+      authError.value = null
+      markReady(isReady)
     },
-    { deep: true },
+    (error) => {
+      authError.value = error.message
+      markReady(isReady)
+    },
   )
 
   const isSignedIn = computed(() => Boolean(session.value))
 
-  function signIn(payload: { name: string; email?: string; provider: AuthProvider }) {
-    session.value = {
-      id: createId(),
-      name: payload.name,
-      email: payload.email,
-      provider: payload.provider,
-      onboardedAt: Date.now(),
-      avatarColor: pickAvatarColor(payload.name),
+  async function signInWithGoogle() {
+    isAuthenticating.value = true
+    authError.value = null
+    const provider = new GoogleAuthProvider()
+    provider.setCustomParameters({ prompt: 'select_account' })
+    try {
+      await signInWithPopup(firebaseAuth, provider)
+    } catch (error) {
+      authError.value = extractAuthError(error)
+      throw error
+    } finally {
+      isAuthenticating.value = false
     }
   }
 
-  function signOut() {
-    session.value = null
+  async function signOut() {
+    await firebaseSignOut(firebaseAuth)
   }
 
-  function updateProfile(partial: Partial<UserProfile>) {
-    if (!session.value) return
-    session.value = { ...session.value, ...partial }
+  async function updateProfile(partial: Partial<UserProfile>) {
+    const user = firebaseAuth.currentUser
+    if (!user || !partial.name) return
+    try {
+      await firebaseUpdateProfile(user, { displayName: partial.name })
+      session.value = mapFirebaseUser(user)
+    } catch (error) {
+      authError.value = extractAuthError(error)
+      throw error
+    }
+  }
+
+  async function disconnectAccount() {
+    const user = firebaseAuth.currentUser
+    if (!user) return
+    try {
+      await deleteUser(user)
+      session.value = null
+    } catch (error) {
+      authError.value = extractAuthError(error)
+      throw error
+    }
+  }
+
+  function ensureAuthReady() {
+    if (isReady.value) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      readyResolvers.push(resolve)
+    })
   }
 
   return {
     session,
+    isReady,
     isSignedIn,
-    signIn,
+    isAuthenticating,
+    authError,
+    signInWithGoogle,
     signOut,
     updateProfile,
+    disconnectAccount,
+    ensureAuthReady,
   }
 })
+
+function markReady(flag: { value: boolean }) {
+  if (flag.value) return
+  flag.value = true
+  readyResolvers.splice(0).forEach((resolve) => resolve())
+}
+
+function mapFirebaseUser(user: User | null): UserProfile | null {
+  if (!user) return null
+  const createdAt = user.metadata?.creationTime ? Date.parse(user.metadata.creationTime) : Date.now()
+  const safeCreatedAt = Number.isFinite(createdAt) ? createdAt : Date.now()
+  return {
+    id: user.uid,
+    name: user.displayName ?? user.email ?? 'Tagmoa User',
+    email: user.email ?? undefined,
+    provider: AuthProvider.GOOGLE,
+    onboardedAt: safeCreatedAt,
+    avatarColor: pickAvatarColor(user.displayName ?? user.email ?? user.uid),
+  }
+}
+
+function extractAuthError(error: unknown): string {
+  if (!error) return '알 수 없는 오류가 발생했습니다.'
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message || '알 수 없는 오류가 발생했습니다.'
+  return '알 수 없는 오류가 발생했습니다.'
+}
 
 function pickAvatarColor(seed: string): string {
   const palette = ['#5577ff', '#ff7e5f', '#52a79c', '#f76d82', '#3bb2e3']

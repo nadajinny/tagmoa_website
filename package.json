@@ -17,6 +17,7 @@
   "dependencies": {
     "@vueuse/core": "^14.0.0",
     "date-fns": "^4.1.0",
+    "firebase": "^12.6.0",
     "lucide-vue-next": "^0.553.0",
     "nanoid": "^5.1.6",
     "pinia": "^3.0.4",

@@ -1,35 +1,32 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AuthProvider } from '../types/models'
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { session } = storeToRefs(authStore)
 
-const name = ref('태그모아 사용자')
-const email = ref('user@example.com')
-const provider = ref<AuthProvider>(AuthProvider.GOOGLE)
-const error = ref('')
+const isLoading = computed(() => authStore.isAuthenticating)
+const error = computed(() => authStore.authError)
 
-function submit() {
-  if (!name.value.trim()) {
-    error.value = '이름을 입력해주세요.'
-    return
+watch(
+  session,
+  (value) => {
+    if (value) {
+      router.push({ name: 'home' })
+    }
+  },
+  { immediate: true },
+)
+
+async function signInWithGoogle() {
+  try {
+    await authStore.signInWithGoogle()
+  } catch {
+    // error message handled via store state
   }
-  authStore.signIn({
-    name: name.value,
-    email: email.value,
-    provider: provider.value,
-  })
-  router.push('/')
-}
-
-function useDemoAccount() {
-  name.value = 'Tagmoa Demo'
-  email.value = 'demo@tagmoa.app'
-  provider.value = AuthProvider.GUEST
-  submit()
 }
 </script>
 
@@ -40,8 +37,7 @@ function useDemoAccount() {
         <p class="brand-pill">Tagmoa Web</p>
         <h1>태그 중심의 프로젝트 흐름, 웹에서도</h1>
         <p>
-          구글, 카카오, 네이버 계정을 통해 Tagmoa를 이용했던 것처럼 웹에서도 동일한 흐름으로
-          주요/세부 일정을 관리해보세요.
+          구글 계정으로 Tagmoa에 로그인하고 주요/세부 일정을 실시간 데이터베이스와 함께 관리하세요.
         </p>
         <ul>
           <li>태그 → 주요 일정 → 세부 일정의 3단 구조</li>
@@ -50,48 +46,14 @@ function useDemoAccount() {
         </ul>
       </div>
 
-      <form class="login__form" @submit.prevent="submit">
-        <div class="provider-buttons">
-          <button
-            type="button"
-            :class="{ active: provider === AuthProvider.GOOGLE }"
-            @click="provider = AuthProvider.GOOGLE"
-          >
-            Google
-          </button>
-          <!--
-          <button
-            type="button"
-            :class="{ active: provider === AuthProvider.KAKAO }"
-            @click="provider = AuthProvider.KAKAO"
-          >
-            Kakao
-          </button>
-          <button
-            type="button"
-            :class="{ active: provider === AuthProvider.NAVER }"
-            @click="provider = AuthProvider.NAVER"
-          >
-            Naver
-          </button>
-          -->
-        </div>
-        <label>
-          이름
-          <input v-model="name" type="text" placeholder="이름을 입력하세요" />
-        </label>
-        <label>
-          이메일
-          <input v-model="email" type="email" placeholder="이메일 주소" />
-        </label>
-
-        <p v-if="error" class="login__error">{{ error }}</p>
-
-        <button class="btn-primary" type="submit">Tagmoa 시작하기</button>
-        <button class="login__ghost" type="button" @click="useDemoAccount">
-          체험 모드로 살펴보기
+      <div class="login__form">
+        <button class="btn-primary" type="button" :disabled="isLoading" @click="signInWithGoogle">
+          <span v-if="isLoading">Google 로그인 중...</span>
+          <span v-else>Google 계정으로 로그인</span>
         </button>
-      </form>
+        <p class="login__note">Tagmoa Web은 Google Authentication을 통해서만 로그인할 수 있습니다.</p>
+        <p v-if="error" class="login__error">{{ error }}</p>
+      </div>
     </div>
   </section>
 </template>
@@ -134,48 +96,9 @@ function useDemoAccount() {
   gap: 1rem;
 }
 
-.login__form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-weight: 600;
+.login__note {
   color: var(--text-secondary);
-}
-
-.login__form input {
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 0.85rem 1rem;
-  font-size: 1rem;
-}
-
-.provider-buttons {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
-}
-
-.provider-buttons button {
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  padding: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  background-color: #fff;
-}
-
-.provider-buttons .active {
-  border-color: transparent;
-  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
-  color: #fff;
-}
-
-.login__ghost {
-  border: none;
-  background: transparent;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
+  font-size: 0.9rem;
 }
 
 .login__error {

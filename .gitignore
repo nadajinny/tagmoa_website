@@ -34,3 +34,10 @@ coverage
 
 # Vitest
 __screenshots__/
+
+# Firebase local configuration and secrets
+.firebase
+.firebaserc
+firebase.json
+database.rules.json
+src/services/firebase.ts
