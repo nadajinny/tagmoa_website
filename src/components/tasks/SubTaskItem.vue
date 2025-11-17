@@ -97,6 +97,11 @@ const dueLabel = computed(() => {
   flex: 1;
 }
 
+.sub-task__details p {
+  font-size: clamp(0.95rem, 0.6vw + 0.5rem, 1.2rem);
+  font-weight: 600;
+}
+
 .sub-task__title--done {
   text-decoration: line-through;
   color: var(--text-muted);
@@ -104,6 +109,7 @@ const dueLabel = computed(() => {
 
 .sub-task__details small {
   color: var(--text-muted);
+  font-size: clamp(0.78rem, 0.4vw + 0.45rem, 0.95rem);
 }
 
 .emoji {
@@ -116,10 +122,18 @@ const dueLabel = computed(() => {
 }
 
 .sub-task__actions button {
-  border: none;
-  background: transparent;
+  border: 1px solid var(--border-color);
+  background: #fff;
   font-weight: 600;
   cursor: pointer;
+  padding: 0.35rem 0.8rem;
+  border-radius: 10px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.sub-task__actions button:hover {
+  background-color: var(--surface-muted);
+  border-color: rgba(17, 24, 39, 0.2);
 }
 
 .sub-task__actions .danger {

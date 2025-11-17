@@ -71,7 +71,7 @@ function createSubTask() {
     <template #actions>
       <div class="task-actions">
         <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
-        <button class="link" type="button" @click="createSubTask">서브 테스크 추가</button>
+        <button class="btn-link" type="button" @click="createSubTask">서브 테스크 추가</button>
       </div>
     </template>
 
@@ -91,7 +91,7 @@ function createSubTask() {
           :clickable="true"
           @click="toggleTag(tag.id)"
         />
-        <button class="link" type="button" @click="router.push({ name: 'tags' })">
+        <button class="btn-link" type="button" @click="router.push({ name: 'tags' })">
           태그 관리 →
         </button>
       </div>

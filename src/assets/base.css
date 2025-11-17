@@ -5,23 +5,25 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --brand-primary: #3f7cff;
-  --brand-secondary: #2fb8a6;
-  --brand-accent: #ffb347;
-  --bg-color: #f5f6fb;
+  --brand-primary: #1f2937;
+  --brand-secondary: #4b5563;
+  --brand-accent: #9ca3af;
+  --bg-color: #f7f7f8;
   --surface-color: #ffffff;
-  --surface-muted: #f0f2f7;
-  --border-color: rgba(15, 30, 80, 0.08);
-  --text-primary: #101828;
-  --text-secondary: #4a5568;
-  --text-muted: #98a2b3;
+  --surface-muted: #f2f2f4;
+  --border-color: rgba(17, 24, 39, 0.12);
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
   --radius-large: 28px;
   --radius-medium: 18px;
   --shadow-soft: 0 18px 40px rgba(15, 77, 150, 0.06);
   --shadow-elevated: 0 24px 55px rgba(26, 41, 77, 0.12);
-  --page-gradient: radial-gradient(circle at top, rgba(75, 118, 255, 0.3), transparent 55%),
-    radial-gradient(circle at 20% 20%, rgba(55, 196, 178, 0.4), transparent 40%),
-    var(--bg-color);
+  --page-gradient: #ffffff;
+}
+
+html {
+  font-size: clamp(9px, 0.4vw + 5.5px, 12px);
 }
 
 *,
@@ -40,7 +42,7 @@ body {
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  font-size: 16px;
+  font-size: 0.85rem;
   color: var(--text-primary);
   background: var(--page-gradient);
   line-height: 1.6;

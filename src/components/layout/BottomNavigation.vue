@@ -1,53 +1,65 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { CalendarDays, Home, ListTodo, UserRound } from 'lucide-vue-next'
 
 interface NavItem {
   name: string
   label: string
   to: string
-  icon: string
+  icon: any
 }
 
+const props = withDefaults(
+  defineProps<{
+    collapsed?: boolean
+  }>(),
+  {
+    collapsed: false,
+  },
+)
+
+const emit = defineEmits<{
+  toggle: []
+}>()
+
 const items: NavItem[] = [
-  { name: 'home', label: '홈', to: '/', icon: 'home' },
-  { name: 'tasks', label: '태스크', to: '/tasks', icon: 'tasks' },
-  { name: 'calendar', label: '캘린더', to: '/calendar', icon: 'calendar' },
-  { name: 'profile', label: '프로필', to: '/profile', icon: 'profile' },
+  { name: 'home', label: '홈', to: '/', icon: Home },
+  { name: 'tasks', label: '태스크', to: '/tasks', icon: ListTodo },
+  { name: 'calendar', label: '캘린더', to: '/calendar', icon: CalendarDays },
+  { name: 'profile', label: '프로필', to: '/profile', icon: UserRound },
 ]
 
 const route = useRoute()
 
 const activeName = computed(() => (route.name as string) ?? 'home')
 
-const renderIcon = (name: string) => {
-  switch (name) {
-    case 'home':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M4 11L12 4l8 7v7a2 2 0 0 1-2 2h-3.5a1.5 1.5 0 0 1-1.5-1.5V15H11v5.5A1.5 1.5 0 0 1 9.5 22H6a2 2 0 0 1-2-2v-9z" />
-      </svg>`
-    case 'tasks':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
-        <rect x="4" y="4" width="16" height="16" rx="4" />
-        <path d="M8 9h8M8 13h5" stroke-linecap="round" />
-      </svg>`
-    case 'calendar':
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
-        <rect x="3.5" y="5" width="17" height="15" rx="3" />
-        <path d="M7 3.5V6M17 3.5V6M4 9.5h16" stroke-linecap="round" />
-      </svg>`
-    default:
-      return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4.5 20c1.5-3.5 4.5-5.5 7.5-5.5S17.5 16.5 19 20" stroke-linecap="round" />
-      </svg>`
-  }
-}
 </script>
 
 <template>
-  <nav class="side-nav card-surface">
-    <p class="side-nav__title">탐모아</p>
+  <nav
+    class="side-nav card-surface"
+    :class="{ 'side-nav--collapsed': props.collapsed }"
+  >
+    <div class="side-nav__header" v-if="!props.collapsed">
+      <p class="side-nav__title">탐모아</p>
+      <button class="side-nav__toggle" type="button" @click="emit('toggle')">
+        <span class="bar"></span>
+        <span class="bar"></span>
+        <span class="bar"></span>
+      </button>
+    </div>
+    <button
+      v-else
+      class="side-nav__toggle"
+      type="button"
+      @click="emit('toggle')"
+      aria-label="사이드바 확장"
+    >
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
     <RouterLink
       v-for="item in items"
       :key="item.name"
@@ -55,8 +67,14 @@ const renderIcon = (name: string) => {
       class="side-nav__item"
       :class="{ 'side-nav__item--active': activeName === item.name }"
     >
-      <span class="side-nav__icon" v-html="renderIcon(item.icon)" />
-      <span class="side-nav__label">{{ item.label }}</span>
+      <component
+        :is="item.icon"
+        class="side-nav__icon"
+        :class="{ 'side-nav__icon--active': activeName === item.name }"
+        size="22"
+        stroke-width="1.7"
+      />
+      <span v-if="!props.collapsed" class="side-nav__label">{{ item.label }}</span>
     </RouterLink>
   </nav>
 </template>
@@ -71,12 +89,30 @@ const renderIcon = (name: string) => {
   box-shadow: var(--shadow-soft);
   background-color: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+
+.side-nav--collapsed {
+  align-items: center;
+  padding: 1rem 0.75rem;
+}
+
+.side-nav__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.side-nav--collapsed .side-nav__header {
+  flex-direction: column;
+  justify-content: center;
 }
 
 .side-nav__title {
   font-weight: 700;
   font-size: 1.15rem;
-  margin-bottom: 0.75rem;
   color: var(--text-primary);
 }
 
@@ -91,17 +127,36 @@ const renderIcon = (name: string) => {
   transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.side-nav__item--active {
-  color: var(--brand-primary);
-  background-color: rgba(63, 124, 255, 0.14);
+.side-nav--collapsed .side-nav__item {
+  justify-content: center;
+  padding: 0.45rem 0.5rem;
+}
+
+.side-nav__toggle {
+  border: none;
+  background: #fff;
+  border-radius: 14px;
+  padding: 0.45rem;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  cursor: pointer;
+}
+
+.side-nav__toggle .bar {
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background-color: var(--text-primary);
+  display: block;
 }
 
 .side-nav__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+  color: var(--text-primary);
+}
+
+.side-nav__icon--active {
+  color: var(--brand-primary);
 }
 
 @media (max-width: 900px) {

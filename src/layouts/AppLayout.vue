@@ -14,6 +14,7 @@ const { visibleTags, allMainTasks } = storeToRefs(workspace)
 
 const showMainForm = ref(false)
 const showSubForm = ref(false)
+const navCollapsed = ref(false)
 
 const editingMainTask = ref(null)
 const editingSubTask = ref(null)
@@ -55,12 +56,19 @@ provide(layoutActionsKey, {
   openMainForm,
   openSubForm,
 })
+
+function toggleNav() {
+  navCollapsed.value = !navCollapsed.value
+}
 </script>
 
 <template>
   <div class="app-layout">
-    <div class="app-layout__sidebar">
-      <BottomNavigation />
+    <div
+      class="app-layout__sidebar"
+      :class="{ 'app-layout__sidebar--collapsed': navCollapsed }"
+    >
+      <BottomNavigation :collapsed="navCollapsed" @toggle="toggleNav" />
     </div>
 
     <div class="app-layout__main">
@@ -101,17 +109,39 @@ provide(layoutActionsKey, {
 <style scoped>
 .app-layout {
   min-height: 100vh;
-  padding: 2rem 2rem 120px;
+  padding: 1.5rem 1.5rem 100px;
   display: flex;
-  gap: 2rem;
+  gap: 1.5rem;
   align-items: flex-start;
 }
 
 .app-layout__sidebar {
-  width: 240px;
+  width: 220px;
   flex-shrink: 0;
   position: sticky;
-  top: 2rem;
+  top: 1.5rem;
+  transition: width 0.25s ease;
+}
+
+.app-layout__sidebar--collapsed {
+  width: 82px;
+}
+
+.sidebar-toggle {
+  border: none;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  width: 44px;
+  height: 44px;
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  box-shadow: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .app-layout__main {

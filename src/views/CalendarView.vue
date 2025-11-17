@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   addMonths,
@@ -13,17 +14,23 @@ import {
   startOfDay,
 } from 'date-fns'
 import AppScaffold from '../components/layout/AppScaffold.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { toDateKey } from '../utils/dates'
 import type { SubTask } from '../types/models'
 import { layoutActionsKey } from '../layouts/layoutActions'
+import { useRouter } from 'vue-router'
 
 const workspace = useWorkspaceStore()
 const { allMainTasks, allSubTasks } = storeToRefs(workspace)
 const layoutActions = inject(layoutActionsKey, null)
+const router = useRouter()
 
 const currentDate = ref(new Date())
 const selectedKey = ref(toDateKey(new Date()))
+const viewMode = ref<'calendar' | 'timeline'>('calendar')
+const timelineListRef = ref<HTMLElement | null>(null)
+const timelineEntryRefs = ref<Record<string, HTMLElement>>({})
 
 const monthLabel = computed(() => format(currentDate.value, 'yyyy년 MM월'))
 
@@ -35,6 +42,7 @@ type DaySubTask = {
   color: string
   bgColor: string
   mainTitle: string
+  mainTaskId: string
   position: RangePosition
 }
 
@@ -55,6 +63,7 @@ type WeekBar = {
   color: string
   bgColor: string
   mainTitle: string
+  mainTaskId: string
   truncatedStart: boolean
   truncatedEnd: boolean
 }
@@ -83,6 +92,7 @@ const subTasksByDate = computed(() => {
         color,
         bgColor: translucent,
         mainTitle: parent?.title || '메인 테스크 없음',
+        mainTaskId: subTask.mainTaskId,
         position: segment.position,
       })
     })
@@ -130,6 +140,17 @@ const calendarWeeks = computed(() => {
 
 const selectedSubTasks = computed(() => subTasksByDate.value[selectedKey.value] ?? [])
 
+const timelineDates = computed(() =>
+  calendarDays.value
+    .filter((day) => day.isCurrentMonth)
+    .map((day) => ({
+      key: day.key,
+      date: day.date,
+      label: format(day.date, 'M월 d일 (EEE)'),
+      tasks: subTasksByDate.value[day.key] ?? [],
+    })),
+)
+
 function goPrev() {
   currentDate.value = addMonths(currentDate.value, -1)
 }
@@ -137,9 +158,43 @@ function goPrev() {
 function goNext() {
   currentDate.value = addMonths(currentDate.value, 1)
 }
+function setTimelineEntryRef(key: string, el: Element | ComponentPublicInstance | null) {
+  const map = timelineEntryRefs.value
+  let element: HTMLElement | null = null
+  if (el instanceof HTMLElement) {
+    element = el
+  } else if (el && '$el' in el) {
+    element = (el.$el as HTMLElement) ?? null
+  }
+  if (element) {
+    map[key] = element
+  } else {
+    delete map[key]
+  }
+}
+
+function scrollTimelineToKey(key: string, smooth = true) {
+  if (!key) return
+  const el = timelineEntryRefs.value[key]
+  const container = timelineListRef.value
+  if (el && container) {
+    el.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'start',
+    })
+  }
+}
 
 function selectDay(key: string) {
+  if (!key) return
   selectedKey.value = key
+  if (viewMode.value === 'timeline') {
+    nextTick(() => scrollTimelineToKey(key))
+  }
+}
+
+function setViewMode(mode: 'calendar' | 'timeline') {
+  viewMode.value = mode
 }
 
 function createMainTask() {
@@ -149,6 +204,66 @@ function createMainTask() {
 function createSubTask() {
   layoutActions?.openSubForm()
 }
+
+function goToTask(taskId?: string) {
+  if (!taskId) return
+  router.push({ name: 'task-detail', params: { id: taskId } })
+}
+
+function handleTimelineScroll() {
+  if (viewMode.value !== 'timeline') return
+  const container = timelineListRef.value
+  if (!container) return
+  const containerTop = container.getBoundingClientRect().top
+  let activeKey = timelineDates.value[0]?.key ?? ''
+  for (const entry of timelineDates.value) {
+    const el = timelineEntryRefs.value[entry.key]
+    if (!el) continue
+    const distance = el.getBoundingClientRect().top - containerTop
+    if (distance <= 12) {
+      activeKey = entry.key
+    } else {
+      break
+    }
+  }
+  if (activeKey && activeKey !== selectedKey.value) {
+    selectedKey.value = activeKey
+  }
+}
+
+watch(
+  () => timelineListRef.value,
+  (el, prev) => {
+    prev?.removeEventListener('scroll', handleTimelineScroll)
+    el?.addEventListener('scroll', handleTimelineScroll, { passive: true })
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  timelineListRef.value?.removeEventListener('scroll', handleTimelineScroll)
+})
+
+watch(
+  timelineDates,
+  (entries) => {
+    if (!entries.length) return
+    const firstEntry = entries[0]
+    if (firstEntry && !entries.find((entry) => entry.key === selectedKey.value)) {
+      selectedKey.value = firstEntry.key
+    }
+    if (viewMode.value === 'timeline') {
+      nextTick(() => scrollTimelineToKey(selectedKey.value, false))
+    }
+  },
+  { immediate: true },
+)
+
+watch(viewMode, (mode) => {
+  if (mode === 'timeline') {
+    nextTick(() => scrollTimelineToKey(selectedKey.value, false))
+  }
+})
 
 function buildSpan(subTask: SubTask) {
   const segments: { key: string; position: RangePosition }[] = []
@@ -193,6 +308,7 @@ function buildWeekBars(weekDays: CalendarDay[]) {
           color: segment.color,
           bgColor: segment.bgColor,
           mainTitle: segment.mainTitle,
+          mainTaskId: segment.mainTaskId,
           truncatedStart: !(segment.position === 'start' || segment.position === 'single'),
           truncatedEnd: !(segment.position === 'end' || segment.position === 'single'),
         })
@@ -247,62 +363,124 @@ function toTranslucent(hex: string, alpha = 0.18) {
   >
     <template #actions>
       <div class="calendar-actions">
-        <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
-        <button class="link" type="button" @click="createSubTask">서브 테스크 추가</button>
-      </div>
-    </template>
-    <section class="calendar card-surface">
-      <header class="calendar__header">
-        <button type="button" @click="goPrev">‹</button>
-        <h2>{{ monthLabel }}</h2>
-        <button type="button" @click="goNext">›</button>
-      </header>
-      <div class="calendar__weekday-row">
-        <div class="calendar__weekday" v-for="weekday in ['일','월','화','수','목','금','토']" :key="weekday">
-          {{ weekday }}
+        <div class="view-toggle">
+          <button
+            type="button"
+            :class="['view-toggle__button', { 'view-toggle__button--active': viewMode === 'calendar' }]"
+            @click="setViewMode('calendar')"
+          >
+            캘린더
+          </button>
+          <button
+            type="button"
+            :class="['view-toggle__button', { 'view-toggle__button--active': viewMode === 'timeline' }]"
+            @click="setViewMode('timeline')"
+          >
+            스크롤
+          </button>
+        </div>
+
+        <div class="calendar-actions__buttons">
+          <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
+          <button class="btn-link" type="button" @click="createSubTask">서브 테스크 추가</button>
         </div>
       </div>
-      <div class="calendar__weeks">
-        <div v-for="week in calendarWeeks" :key="week.id" class="calendar__week">
-          <div class="calendar__week-grid" :style="{ '--bar-rows': week.rowCount }">
-            <button
-              v-for="day in week.days"
-              :key="week.id + day.key"
-              type="button"
-              class="calendar__day"
-              :class="{
-                'calendar__day--muted': !day.isCurrentMonth,
-                'calendar__day--selected': selectedKey === day.key,
-              }"
-              @click="selectDay(day.key)"
-            >
-              <div class="calendar__day-content">
-                <div class="calendar__day-header">
-                  <span>{{ format(day.date, 'd') }}</span>
+    </template>
+    <section :class="['calendar card-surface', { 'calendar--timeline': viewMode === 'timeline' }]">
+      <div class="calendar__panel">
+        <header class="calendar__header">
+          <button type="button" @click="goPrev">‹</button>
+          <h2>{{ monthLabel }}</h2>
+          <button type="button" @click="goNext">›</button>
+        </header>
+        <div class="calendar__weekday-row">
+          <div class="calendar__weekday" v-for="weekday in ['일','월','화','수','목','금','토']" :key="weekday">
+            {{ weekday }}
+          </div>
+        </div>
+        <div class="calendar__weeks">
+          <div v-for="week in calendarWeeks" :key="week.id" class="calendar__week">
+            <div class="calendar__week-grid" :style="{ '--bar-rows': week.rowCount }">
+              <button
+                v-for="day in week.days"
+                :key="week.id + day.key"
+                type="button"
+                class="calendar__day"
+                :class="{
+                  'calendar__day--muted': !day.isCurrentMonth,
+                  'calendar__day--selected': selectedKey === day.key,
+                  'calendar__day--timeline-highlight': viewMode === 'timeline' && selectedKey === day.key,
+                }"
+                @click="selectDay(day.key)"
+              >
+                <div class="calendar__day-content">
+                  <div class="calendar__day-header">
+                    <span>{{ format(day.date, 'd') }}</span>
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
 
-            <div
-              v-for="bar in week.bars"
-              :key="bar.id + week.id + bar.row"
-              class="calendar__week-bar"
-              :data-truncated-start="bar.truncatedStart"
-              :data-truncated-end="bar.truncatedEnd"
-              :style="{
-                gridColumn: `${bar.start + 1} / span ${bar.span}`,
-                gridRow: `${bar.row + 2}`,
-              }"
-            >
-              <span class="calendar__subtask-indicator"></span>
-              <p>
-                {{ bar.content }}
-                <small>{{ bar.mainTitle }}</small>
-              </p>
+              <template v-if="viewMode === 'calendar'">
+                <div
+                  v-for="bar in week.bars"
+                  :key="bar.id + week.id + bar.row"
+                  class="calendar__week-bar"
+                  :data-truncated-start="bar.truncatedStart"
+                  :data-truncated-end="bar.truncatedEnd"
+                  :style="{
+                    gridColumn: `${bar.start + 1} / span ${bar.span}`,
+                    gridRow: `${bar.row + 2}`,
+                  }"
+                  role="button"
+                  tabindex="0"
+                  @click="goToTask(bar.mainTaskId)"
+                  @keydown.enter.prevent="goToTask(bar.mainTaskId)"
+                >
+                  <span class="calendar__subtask-indicator"></span>
+                  <p>
+                    {{ bar.content }}
+                    <small>{{ bar.mainTitle }}</small>
+                  </p>
+                </div>
+              </template>
             </div>
           </div>
         </div>
       </div>
+
+      <aside v-if="viewMode === 'timeline'" class="timeline-panel">
+        <h3>날짜별 일정</h3>
+        <p class="timeline-panel__hint">날짜를 눌러 캘린더에서 강조해보세요.</p>
+
+        <div class="timeline-list" ref="timelineListRef">
+          <article
+            v-for="entry in timelineDates"
+            :key="entry.key"
+            :ref="(el) => setTimelineEntryRef(entry.key, el)"
+            :class="['timeline-entry', { 'timeline-entry--selected': selectedKey === entry.key }]"
+          >
+            <button type="button" class="timeline-entry__header" @click="selectDay(entry.key)">
+              <span class="timeline-entry__date">{{ entry.label }}</span>
+            </button>
+            <div v-if="entry.tasks.length" class="timeline-entry__tasks">
+              <button
+                v-for="task in entry.tasks"
+                :key="task.id"
+                class="timeline-entry__task"
+                type="button"
+                @click="goToTask(task.mainTaskId)"
+              >
+                <span class="timeline-entry__indicator"></span>
+                <div>
+                  <p class="timeline-entry__task-title">{{ task.content }}</p>
+                  <small>{{ task.mainTitle }}</small>
+                </div>
+              </button>
+            </div>
+            <p v-else class="timeline-entry__empty">추가된 일정이 없습니다.</p>
+          </article>
+        </div>
+      </aside>
     </section>
 
     <section class="calendar card-surface">
@@ -310,7 +488,14 @@ function toTranslucent(hex: string, alpha = 0.18) {
         <h2>{{ selectedSubTasks.length ? '선택한 날짜의 서브 테스크' : '선택된 날짜에 작업이 없어요' }}</h2>
       </header>
       <ul v-if="selectedSubTasks.length" class="calendar__tasks">
-        <li v-for="task in selectedSubTasks" :key="task.id + '-detail'">
+        <li
+          v-for="task in selectedSubTasks"
+          :key="task.id + '-detail'"
+          role="button"
+          tabindex="0"
+          @click="goToTask(task.mainTaskId)"
+          @keydown.enter.prevent="goToTask(task.mainTaskId)"
+        >
           <span class="dot" :style="{ backgroundColor: task.color }"></span>
           <div>
             <p class="title">{{ task.content || '내용 없음' }}</p>
@@ -332,6 +517,27 @@ function toTranslucent(hex: string, alpha = 0.18) {
   gap: 1rem;
 }
 
+.calendar--timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr);
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.calendar__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.calendar__weekday-row {
+  --calendar-gap: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--calendar-gap);
+  margin-bottom: 0.5rem;
+}
+
 .calendar__header {
   display: flex;
   align-items: center;
@@ -347,14 +553,6 @@ function toTranslucent(hex: string, alpha = 0.18) {
   height: 40px;
   font-size: 1.35rem;
   cursor: pointer;
-}
-
-.calendar__weekday-row {
-  --calendar-gap: 0.35rem;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--calendar-gap);
-  margin-bottom: 0.5rem;
 }
 
 .calendar__weekday {
@@ -414,6 +612,10 @@ function toTranslucent(hex: string, alpha = 0.18) {
   background: transparent;
 }
 
+.calendar__day--timeline-highlight span {
+  background-color: rgba(28, 32, 51, 0.14);
+}
+
 .calendar__day-header {
   display: flex;
   justify-content: space-between;
@@ -468,15 +670,154 @@ function toTranslucent(hex: string, alpha = 0.18) {
 }
 
 .calendar__week-bar p {
-  font-size: 1.4rem;
-  line-height: 1.45;
+  font-size: clamp(0.95rem, 0.8vw + 0.55rem, 1.1rem);
+  line-height: 1.35;
   display: flex;
   flex-direction: column;
   word-break: break-word;
 }
 
 .calendar__week-bar p small {
-  font-size: 0.9rem;
+  font-size: clamp(0.75rem, 0.35vw + 0.5rem, 0.85rem);
+  color: #6f7287;
+}
+
+.calendar-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-actions__buttons {
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.view-toggle {
+  display: inline-flex;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  gap: 0.25rem;
+}
+
+.view-toggle__button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-toggle__button--active {
+  background: #fff;
+  color: var(--brand-primary);
+}
+
+.timeline-panel {
+  padding: 1.5rem;
+  border-radius: 28px;
+  border: 1px solid rgba(25, 30, 58, 0.08);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 640px;
+  overflow: hidden;
+  color: #1b1e31;
+}
+
+.timeline-panel__hint {
+  font-size: 0.85rem;
+  color: #6f7287;
+}
+
+.timeline-list {
+  overflow-y: auto;
+  padding-right: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timeline-entry {
+  border-radius: 20px;
+  border: 1px solid rgba(25, 30, 58, 0.08);
+  padding: 1rem;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.timeline-entry--selected {
+  border-color: rgba(63, 124, 255, 0.4);
+  box-shadow: 0 8px 22px rgba(25, 30, 58, 0.12);
+}
+
+.timeline-entry__header {
+  border: 1px solid rgba(25, 30, 58, 0.12);
+  background: #f4f5f7;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 16px;
+  padding: 0.65rem 0.9rem;
+}
+
+.timeline-entry__header:hover {
+  background: #ebedef;
+}
+
+.timeline-entry__tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.timeline-entry__task {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid rgba(25, 30, 58, 0.08);
+  background: #f7f8ff;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.timeline-entry__indicator {
+  width: 6px;
+  border-radius: 999px;
+  align-self: stretch;
+  background: #111;
+}
+
+.timeline-entry__task-title {
+  font-weight: 600;
+  margin-bottom: 0.15rem;
+  font-size: clamp(1rem, 0.8vw + 0.55rem, 1.3rem);
+}
+
+.timeline-entry__tasks small {
+  color: #6f7287;
+  font-size: clamp(0.85rem, 0.4vw + 0.5rem, 1rem);
+}
+
+.timeline-entry__empty {
+  font-size: 0.85rem;
   color: #6f7287;
 }
 
@@ -492,10 +833,17 @@ function toTranslucent(hex: string, alpha = 0.18) {
   display: flex;
   gap: 0.8rem;
   align-items: center;
+  cursor: pointer;
 }
 
 .calendar__tasks .title {
   font-weight: 600;
+  font-size: clamp(1rem, 0.8vw + 0.55rem, 1.3rem);
+}
+
+.calendar__tasks small {
+  font-size: clamp(0.85rem, 0.4vw + 0.5rem, 1rem);
+  color: var(--text-secondary);
 }
 
 .dot {

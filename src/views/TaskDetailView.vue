@@ -111,7 +111,7 @@ function deleteSub(subTask: SubTask) {
     <section class="subtasks card-surface">
       <header>
         <h2>서브 테스크</h2>
-        <button class="link" type="button" @click="openSubForm()">+ 추가</button>
+        <button class="btn-link" type="button" @click="openSubForm()">+ 추가</button>
       </header>
       <div v-if="subtasks.length">
         <SubTaskItem

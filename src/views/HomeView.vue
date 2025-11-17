@@ -52,7 +52,7 @@ function toggleSub(updated: SubTask) {
           <p class="pill-muted">Due Today</p>
           <h2>오늘 마감 메인 테스크</h2>
         </div>
-        <button class="link" type="button" @click="router.push({ name: 'tasks' })">
+        <button class="btn-link" type="button" @click="router.push({ name: 'tasks' })">
           전체 보기 →
         </button>
       </header>
@@ -140,14 +140,6 @@ function toggleSub(updated: SubTask) {
 .sub-list {
   display: flex;
   flex-direction: column;
-}
-
-.link {
-  border: none;
-  background: transparent;
-  font-weight: 600;
-  color: var(--brand-primary);
-  cursor: pointer;
 }
 
 @media (max-width: 720px) {
