@@ -1,41 +1,31 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import AddMenu from '../components/layout/AddMenu.vue'
 import BottomNavigation from '../components/layout/BottomNavigation.vue'
 import SidePanel from '../components/ui/SidePanel.vue'
 import MainTaskForm from '../components/tasks/MainTaskForm.vue'
 import SubTaskForm from '../components/tasks/SubTaskForm.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import type { MainTaskInput, SubTaskInput } from '../types/models'
+import { layoutActionsKey } from './layoutActions'
 
 const workspace = useWorkspaceStore()
 const { visibleTags, allMainTasks } = storeToRefs(workspace)
 
-const addMenuOpen = ref(false)
 const showMainForm = ref(false)
 const showSubForm = ref(false)
-const showTagForm = ref(false)
 
 const editingMainTask = ref(null)
 const editingSubTask = ref(null)
-const tagName = ref('')
 
 function openMainForm() {
   editingMainTask.value = null
   showMainForm.value = true
-  addMenuOpen.value = false
 }
 
 function openSubForm() {
   editingSubTask.value = null
   showSubForm.value = true
-  addMenuOpen.value = false
-}
-
-function openTagForm() {
-  showTagForm.value = true
-  addMenuOpen.value = false
 }
 
 function saveMainTask(payload: MainTaskInput) {
@@ -48,31 +38,23 @@ function saveSubTask(payload: SubTaskInput) {
   showSubForm.value = false
 }
 
-function handleCreateTag() {
-  if (!tagName.value.trim()) return
-  try {
-    workspace.createTag(tagName.value)
-    tagName.value = ''
-    showTagForm.value = false
-  } catch (error) {
-    alert((error as Error).message)
-  }
-}
-
-const panelOpen = computed(() => showMainForm.value || showSubForm.value || showTagForm.value)
+const panelOpen = computed(() => showMainForm.value || showSubForm.value)
 
 const panelTitle = computed(() => {
   if (showMainForm.value) return '메인 테스크 추가/수정'
   if (showSubForm.value) return '서브 테스크 추가/수정'
-  if (showTagForm.value) return '새 태그 추가'
   return ''
 })
 
 function closePanel() {
   showMainForm.value = false
   showSubForm.value = false
-  showTagForm.value = false
 }
+
+provide(layoutActionsKey, {
+  openMainForm,
+  openSubForm,
+})
 </script>
 
 <template>
@@ -108,25 +90,12 @@ function closePanel() {
           @cancel="showSubForm = false"
         />
 
-        <form v-else class="tag-form" @submit.prevent="handleCreateTag">
-          <label>
-            태그 이름
-            <input v-model="tagName" type="text" placeholder="예: 디자인" required />
-          </label>
-          <button class="btn-primary" type="submit">추가</button>
-        </form>
+        <div v-else class="side-panel__placeholder">
+          <p>패널을 닫고 다시 시도해주세요.</p>
+        </div>
       </SidePanel>
     </div>
   </div>
-
-  <AddMenu
-    :open="addMenuOpen"
-    @toggle="addMenuOpen = !addMenuOpen"
-    @close="addMenuOpen = false"
-    @create-main-task="openMainForm"
-    @create-sub-task="openSubForm"
-    @create-tag="openTagForm"
-  />
 </template>
 
 <style scoped>
@@ -157,23 +126,9 @@ function closePanel() {
   min-width: 0;
 }
 
-.tag-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.tag-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-weight: 600;
-}
-
-.tag-form input {
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  padding: 0.8rem 1rem;
+.side-panel__placeholder {
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 @media (max-width: 900px) {

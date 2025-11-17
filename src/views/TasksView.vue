@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import AppScaffold from '../components/layout/AppScaffold.vue'
@@ -8,10 +8,12 @@ import MainTaskCard from '../components/tasks/MainTaskCard.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import type { MainTask } from '../types/models'
+import { layoutActionsKey } from '../layouts/layoutActions'
 
 const workspace = useWorkspaceStore()
 const { allMainTasks, visibleTags } = storeToRefs(workspace)
 const router = useRouter()
+const layoutActions = inject(layoutActionsKey, null)
 
 const search = ref('')
 const selectedTags = ref<string[]>([])
@@ -51,6 +53,14 @@ function openTask(task: MainTask) {
 function toggleComplete(task: MainTask) {
   workspace.toggleMainCompletion(task.id, !task.isCompleted)
 }
+
+function createMainTask() {
+  layoutActions?.openMainForm()
+}
+
+function createSubTask() {
+  layoutActions?.openSubForm()
+}
 </script>
 
 <template>
@@ -58,6 +68,13 @@ function toggleComplete(task: MainTask) {
     title="메인 테스크"
     description="태그와 검색으로 원하는 프로젝트 흐름을 빠르게 찾아보세요."
   >
+    <template #actions>
+      <div class="task-actions">
+        <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
+        <button class="link" type="button" @click="createSubTask">서브 테스크 추가</button>
+      </div>
+    </template>
+
     <div class="task-filters card-surface">
       <input v-model="search" type="search" placeholder="제목, 설명으로 검색" />
       <label class="toggle">
@@ -132,5 +149,13 @@ function toggleComplete(task: MainTask) {
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
+}
+
+.task-actions {
+  display: inline-flex;
+  gap: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

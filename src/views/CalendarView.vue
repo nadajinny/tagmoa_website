@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import {
   addMonths,
@@ -16,9 +16,11 @@ import AppScaffold from '../components/layout/AppScaffold.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { toDateKey } from '../utils/dates'
 import type { SubTask } from '../types/models'
+import { layoutActionsKey } from '../layouts/layoutActions'
 
 const workspace = useWorkspaceStore()
 const { allMainTasks, allSubTasks } = storeToRefs(workspace)
+const layoutActions = inject(layoutActionsKey, null)
 
 const currentDate = ref(new Date())
 const selectedKey = ref(toDateKey(new Date()))
@@ -104,6 +106,14 @@ function selectDay(key: string) {
   selectedKey.value = key
 }
 
+function createMainTask() {
+  layoutActions?.openMainForm()
+}
+
+function createSubTask() {
+  layoutActions?.openSubForm()
+}
+
 function buildSpan(subTask: SubTask) {
   const segments: { key: string; position: RangePosition }[] = []
   const startTs = subTask.startDate ?? subTask.dueDate ?? subTask.endDate
@@ -147,6 +157,12 @@ function toTranslucent(hex: string, alpha = 0.18) {
     title="캘린더"
     description="월간 흐름에서 테스크 마감일과 진행 중인 작업을 한 번에 확인하세요."
   >
+    <template #actions>
+      <div class="calendar-actions">
+        <button class="btn-primary" type="button" @click="createMainTask">메인 테스크 추가</button>
+        <button class="link" type="button" @click="createSubTask">서브 테스크 추가</button>
+      </div>
+    </template>
     <section class="calendar card-surface">
       <header class="calendar__header">
         <button type="button" @click="goPrev">‹</button>
@@ -393,5 +409,12 @@ function toTranslucent(hex: string, alpha = 0.18) {
 
 .calendar__empty {
   color: var(--text-muted);
+}
+
+.calendar-actions {
+  display: inline-flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

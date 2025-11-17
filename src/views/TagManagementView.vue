@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import AppScaffold from '../components/layout/AppScaffold.vue'
 import TagChip from '../components/tags/TagChip.vue'
@@ -7,6 +8,7 @@ import { useWorkspaceStore } from '../stores/workspace'
 
 const workspace = useWorkspaceStore()
 const { allTags } = storeToRefs(workspace)
+const tagName = ref('')
 
 function toggleHidden(tagId: string) {
   workspace.toggleTagVisibility(tagId)
@@ -26,11 +28,28 @@ function move(tagId: string, offset: number) {
   ids.splice(next, 0, tagId)
   workspace.persistTagOrder(ids)
 }
+
+function handleCreateTag() {
+  try {
+    workspace.createTag(tagName.value)
+    tagName.value = ''
+  } catch (error) {
+    alert((error as Error).message)
+  }
+}
 </script>
 
 <template>
   <AppScaffold title="태그 관리" description="프로젝트 흐름에 맞게 태그를 정렬하고 숨길 수 있어요.">
     <section class="tag-panel card-surface">
+      <form class="tag-form" @submit.prevent="handleCreateTag">
+        <label>
+          새 태그 이름
+          <input v-model="tagName" type="text" placeholder="예: 디자인" required />
+        </label>
+        <button class="btn-primary" type="submit">태그 추가</button>
+      </form>
+
       <div v-if="allTags.length" class="tag-panel__list">
         <article v-for="tag in allTags" :key="tag.id" class="tag-row">
           <TagChip :label="tag.name" :color="tag.color" />
@@ -47,7 +66,7 @@ function move(tagId: string, offset: number) {
       <EmptyState
         v-else
         title="아직 태그가 없어요"
-        message="상단 플로팅 버튼에서 태그를 생성해보세요."
+        message="상단 입력창에서 바로 태그를 추가할 수 있어요."
       />
     </section>
   </AppScaffold>
@@ -57,6 +76,26 @@ function move(tagId: string, offset: number) {
 .tag-panel {
   padding: 1.5rem;
   border-radius: 28px;
+}
+
+.tag-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.tag-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.tag-form input {
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
 }
 
 .tag-panel__list {
