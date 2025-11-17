@@ -68,16 +68,17 @@ async function signInWithGoogle() {
 }
 
 .login__panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
+  width: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
   padding: 2.5rem;
   border-radius: 32px;
 }
 
 .login__intro h1 {
   margin: 1rem 0;
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.75rem, 3.5vw, 2.6rem);
 }
 
 .login__intro ul {
