@@ -31,14 +31,22 @@ const alarmLeadMinutes = ref(0)
 const showRangePicker = ref(false)
 const rangeButtonRef = ref<HTMLButtonElement | null>(null)
 
+const priorityOptions = [
+  { value: 0, label: '기본', description: '보통 우선순위', emoji: '💡' },
+  { value: 1, label: '중요', description: '놓치지 말아야 해요', emoji: '🔥' },
+  { value: 2, label: '긴급', description: '빠르게 처리 필요', emoji: '🚀' },
+  { value: 3, label: '가장 중요', description: '최우선으로 진행', emoji: '⭐️' },
+]
+
 watch(
   () => props.mainTasks,
   (tasks: MainTask[]) => {
     if (!mainTaskId.value && tasks.length) {
-      const firstTask = tasks[0]
-      if (firstTask) {
-        mainTaskId.value = firstTask.id
-      }
+      mainTaskId.value = tasks[0]?.id ?? ''
+      return
+    }
+    if (mainTaskId.value && !tasks.find((task) => task.id === mainTaskId.value)) {
+      mainTaskId.value = tasks[0]?.id ?? ''
     }
   },
   { immediate: true },
@@ -75,6 +83,9 @@ watch(
 
 const hasRange = computed(() => Boolean(startDate.value || endDate.value))
 const rangeLabel = computed(() => formatDateRange(startDate.value, endDate.value) || '기간 미정')
+const selectedMainTask = computed(() =>
+  props.mainTasks.find((task) => task.id === mainTaskId.value),
+)
 
 function applyRange(range: { start: number | null; end: number | null }) {
   startDate.value = range.start ?? null
@@ -135,29 +146,61 @@ function submit() {
 
 <template>
   <form class="sub-form" @submit.prevent="submit">
-    <label>
-      메인 테스크
-      <select v-model="mainTaskId">
-        <option v-for="task in mainTasks" :key="task.id" :value="task.id">
-          {{ task.title || '제목 없음' }}
-        </option>
-      </select>
-    </label>
+    <section class="sub-form__main-tasks">
+      <header>
+        <div>
+          <p>메인 테스크</p>
+          <small>
+            {{
+              selectedMainTask
+                ? selectedMainTask.title || '제목 없음'
+                : '메인 테스크를 선택해주세요.'
+            }}
+          </small>
+        </div>
+        <span v-if="!selectedMainTask" class="sub-form__badge">선택 필요</span>
+      </header>
+      <div class="sub-form__main-task-grid" v-if="mainTasks.length">
+        <button
+          v-for="task in mainTasks"
+          :key="task.id"
+          type="button"
+          :class="['main-task-chip', { selected: task.id === mainTaskId }]"
+          @click="mainTaskId = task.id"
+        >
+          <span class="color" :style="{ backgroundColor: task.mainColor }" />
+          <div>
+            <strong>{{ task.title || '제목 없음' }}</strong>
+            <p>{{ task.description || '설명 없음' }}</p>
+          </div>
+        </button>
+      </div>
+      <p v-else class="sub-form__helper">먼저 메인 테스크를 생성하거나 완료를 해제해주세요.</p>
+    </section>
 
     <label>
       내용
       <input v-model="content" type="text" placeholder="할 일을 입력하세요" required />
     </label>
 
-    <label>
-      우선순위
-      <select v-model.number="priority">
-        <option :value="0">기본</option>
-        <option :value="1">중요</option>
-        <option :value="2">긴급</option>
-        <option :value="3">가장 중요</option>
-      </select>
-    </label>
+    <section class="sub-form__priority">
+      <p>우선순위</p>
+      <div class="sub-form__priority-grid">
+        <button
+          v-for="option in priorityOptions"
+          :key="option.value"
+          type="button"
+          :class="['priority-chip', { selected: priority === option.value }]"
+          @click="priority = option.value"
+        >
+          <span class="emoji">{{ option.emoji }}</span>
+          <div>
+            <strong>{{ option.label }}</strong>
+            <small>{{ option.description }}</small>
+          </div>
+        </button>
+      </div>
+    </section>
 
     <section class="sub-form__range">
       <div>
@@ -195,9 +238,10 @@ function submit() {
       </label>
     </div>
 
-    <label class="sub-form__switch">
+    <label class="sub-form__check">
       <input v-model="alarmEnabled" type="checkbox" />
-      알림 사용
+      <span>알림 사용</span>
+      <span class="check-indicator" aria-hidden="true"></span>
     </label>
 
     <label v-if="alarmEnabled">
@@ -239,6 +283,149 @@ function submit() {
   border: 1px solid var(--border-color);
   border-radius: 14px;
   padding: 0.75rem 0.9rem;
+}
+
+.sub-form__main-tasks,
+.sub-form__priority {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sub-form__main-tasks p,
+.sub-form__priority p {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub-form__main-tasks small {
+  font-weight: 600;
+}
+
+.sub-form__main-tasks header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sub-form__badge {
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+  font-size: 0.75rem;
+  background-color: rgba(255, 94, 98, 0.12);
+  color: #ff5e62;
+}
+
+.sub-form__main-task-grid {
+  --main-task-chip-height: 52px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: calc(var(--main-task-chip-height) * 3 + 0.6rem * 2);
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.sub-form__main-task-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sub-form__main-task-grid::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 99px;
+}
+
+.sub-form__main-task-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.main-task-chip {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem;
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  align-items: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  min-height: var(--main-task-chip-height);
+}
+
+.main-task-chip div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.1rem;
+}
+
+.main-task-chip .color {
+  width: 4px;
+  height: 26px;
+  border-radius: 999px;
+}
+
+.main-task-chip strong {
+  display: block;
+}
+
+.main-task-chip p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.main-task-chip.selected {
+  border-color: var(--brand-primary);
+  box-shadow: 0 10px 18px rgba(17, 24, 39, 0.08);
+}
+
+.sub-form__priority-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+
+.priority-chip {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 0.65rem 0.9rem;
+  background: #fff;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.priority-chip div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.1rem;
+}
+
+.priority-chip.selected {
+  border-color: transparent;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  color: #fff;
+}
+
+.priority-chip small {
+  display: block;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.sub-form__helper {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .sub-form__range {
@@ -283,6 +470,39 @@ function submit() {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
+}
+
+.sub-form__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sub-form__check input {
+  display: none;
+}
+
+.sub-form__check .check-indicator {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  position: relative;
+}
+
+.sub-form__check input:checked + span + .check-indicator {
+  border-color: var(--brand-primary);
+}
+
+.sub-form__check input:checked + span + .check-indicator::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  border-radius: 2px;
 }
 
 footer {

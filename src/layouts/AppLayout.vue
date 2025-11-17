@@ -12,6 +12,8 @@ import { layoutActionsKey } from './layoutActions'
 const workspace = useWorkspaceStore()
 const { visibleTags, allMainTasks } = storeToRefs(workspace)
 
+const activeMainTasks = computed(() => allMainTasks.value.filter((task) => !task.isCompleted))
+
 const showMainForm = ref(false)
 const showSubForm = ref(false)
 const navCollapsed = ref(false)
@@ -93,7 +95,7 @@ function toggleNav() {
         <SubTaskForm
           v-else-if="showSubForm"
           :model-value="editingSubTask"
-          :main-tasks="allMainTasks"
+          :main-tasks="activeMainTasks"
           @save="saveSubTask"
           @cancel="showSubForm = false"
         />
