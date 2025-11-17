@@ -77,6 +77,10 @@ function closePanel() {
 
 <template>
   <div class="app-layout">
+    <div class="app-layout__sidebar">
+      <BottomNavigation />
+    </div>
+
     <div class="app-layout__main">
       <div class="app-layout__content">
         <RouterView />
@@ -113,26 +117,36 @@ function closePanel() {
         </form>
       </SidePanel>
     </div>
-
-    <AddMenu
-      :open="addMenuOpen"
-      @toggle="addMenuOpen = !addMenuOpen"
-      @close="addMenuOpen = false"
-      @create-main-task="openMainForm"
-      @create-sub-task="openSubForm"
-      @create-tag="openTagForm"
-    />
-    <BottomNavigation />
   </div>
+
+  <AddMenu
+    :open="addMenuOpen"
+    @toggle="addMenuOpen = !addMenuOpen"
+    @close="addMenuOpen = false"
+    @create-main-task="openMainForm"
+    @create-sub-task="openSubForm"
+    @create-tag="openTagForm"
+  />
 </template>
 
 <style scoped>
 .app-layout {
   min-height: 100vh;
-  padding-bottom: 120px;
+  padding: 2rem 2rem 120px;
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.app-layout__sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 2rem;
 }
 
 .app-layout__main {
+  flex: 1;
   display: flex;
   align-items: flex-start;
   gap: 2rem;
@@ -163,6 +177,16 @@ function closePanel() {
 }
 
 @media (max-width: 900px) {
+  .app-layout {
+    flex-direction: column;
+    padding: 1rem 1.25rem 120px;
+  }
+
+  .app-layout__sidebar {
+    width: 100%;
+    position: static;
+  }
+
   .app-layout__main {
     flex-direction: column;
   }

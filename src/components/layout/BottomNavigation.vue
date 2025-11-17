@@ -46,61 +46,83 @@ const renderIcon = (name: string) => {
 </script>
 
 <template>
-  <nav class="bottom-nav card-surface">
+  <nav class="side-nav card-surface">
+    <p class="side-nav__title">탐모아</p>
     <RouterLink
       v-for="item in items"
       :key="item.name"
       :to="item.to"
-      class="bottom-nav__item"
-      :class="{ 'bottom-nav__item--active': activeName === item.name }"
+      class="side-nav__item"
+      :class="{ 'side-nav__item--active': activeName === item.name }"
     >
-      <span class="bottom-nav__icon" v-html="renderIcon(item.icon)" />
-      <span class="bottom-nav__label">{{ item.label }}</span>
+      <span class="side-nav__icon" v-html="renderIcon(item.icon)" />
+      <span class="side-nav__label">{{ item.label }}</span>
     </RouterLink>
   </nav>
 </template>
 
 <style scoped>
-.bottom-nav {
-  position: sticky;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 0.75rem 1rem;
-  border-radius: 20px;
-  max-width: min(720px, calc(100% - 2rem));
+.side-nav {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
+  padding: 1.5rem 1.25rem;
+  border-radius: 28px;
   box-shadow: var(--shadow-soft);
   background-color: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(12px);
 }
 
-.bottom-nav__item {
+.side-nav__title {
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.side-nav__item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 0.35rem 0.25rem;
+  gap: 0.75rem;
+  padding: 0.75rem 0.6rem;
+  border-radius: 16px;
   color: var(--text-muted);
-  border-radius: 14px;
-  gap: 0.15rem;
-  font-size: 0.78rem;
   font-weight: 600;
   transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.bottom-nav__item--active {
+.side-nav__item--active {
   color: var(--brand-primary);
   background-color: rgba(63, 124, 255, 0.14);
 }
 
-.bottom-nav__icon {
+.side-nav__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
+}
+
+@media (max-width: 900px) {
+  .side-nav {
+    flex-direction: row;
+    align-items: center;
+    border-radius: 20px;
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .side-nav__title {
+    width: 100%;
+    margin-bottom: 0.25rem;
+  }
+
+  .side-nav__item {
+    flex: 1 1 calc(50% - 0.5rem);
+    justify-content: center;
+    gap: 0.4rem;
+  }
 }
 </style>
