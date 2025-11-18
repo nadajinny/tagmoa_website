@@ -146,6 +146,11 @@ function submit() {
 
 <template>
   <form class="sub-form" @submit.prevent="submit">
+    <label>
+      일정
+      <input v-model="content" type="text" placeholder="일정을 입력하세요" required />
+    </label>
+
     <section class="sub-form__main-tasks">
       <header>
         <div>
@@ -177,11 +182,6 @@ function submit() {
       </div>
       <p v-else class="sub-form__helper">먼저 주요 일정을 생성하거나 완료를 해제해주세요.</p>
     </section>
-
-    <label>
-      내용
-      <input v-model="content" type="text" placeholder="할 일을 입력하세요" required />
-    </label>
 
     <section class="sub-form__priority">
       <p>우선순위</p>
