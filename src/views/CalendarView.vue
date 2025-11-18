@@ -31,6 +31,7 @@ const selectedKey = ref(toDateKey(new Date()))
 const viewMode = ref<'calendar' | 'timeline'>('calendar')
 const timelineListRef = ref<HTMLElement | null>(null)
 const timelineEntryRefs = ref<Record<string, HTMLElement>>({})
+const priorityIcons = ['💡', '🔥', '🚀', '⭐️'] as const
 
 const monthLabel = computed(() => format(currentDate.value, 'yyyy년 MM월'))
 
@@ -45,6 +46,7 @@ type DaySubTask = {
   mainTaskId: string
   isCompleted: boolean
   position: RangePosition
+  priority: number
 }
 
 type CalendarDay = {
@@ -97,6 +99,7 @@ const subTasksByDate = computed(() => {
         mainTaskId: subTask.mainTaskId,
         isCompleted: subTask.isCompleted,
         position: segment.position,
+        priority: subTask.priority,
       })
     })
   })
@@ -141,7 +144,15 @@ const calendarWeeks = computed(() => {
   return weeks
 })
 
-const selectedSubTasks = computed(() => subTasksByDate.value[selectedKey.value] ?? [])
+const selectedSubTasks = computed(() => {
+  const entries = subTasksByDate.value[selectedKey.value] ?? []
+  return [...entries].sort((a, b) => {
+    if (b.priority !== a.priority) {
+      return b.priority - a.priority
+    }
+    return a.content.localeCompare(b.content, 'ko-KR')
+  })
+})
 
 const timelineDates = computed(() =>
   calendarDays.value
@@ -526,6 +537,7 @@ function toTranslucent(hex: string, alpha = 0.18) {
           </label>
           <button type="button" class="calendar-task__body" @click="goToTask(task.mainTaskId)">
             <p :class="['calendar-task__title', { 'calendar-task__title--done': task.isCompleted }]">
+              <span class="calendar__priority-icon">{{ priorityIcons[task.priority] ?? '•' }}</span>
               {{ task.content || '내용 없음' }}
             </p>
             <small>{{ task.mainTitle }}</small>
@@ -992,6 +1004,12 @@ function toTranslucent(hex: string, alpha = 0.18) {
 .calendar-task__title {
   font-weight: 600;
   font-size: clamp(1rem, 0.8vw + 0.5rem, 1.2rem);
+}
+
+.calendar__priority-icon {
+  margin-right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
 }
 
 .calendar-task__title--done {
