@@ -216,6 +216,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       Boolean(payload.manualSchedule) && Boolean(payload.startDate ?? payload.endDate)
     const normalizedStart = hasManualSchedule ? payload.startDate ?? payload.endDate ?? null : null
     const normalizedEnd = hasManualSchedule ? payload.endDate ?? payload.startDate ?? null : null
+    const normalizedTagIds = sanitizeTagIds(payload.tagIds)
     const next: MainTask = {
       id,
       title: payload.title.trim(),
@@ -227,7 +228,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       isCompleted: payload.isCompleted ?? existing?.isCompleted ?? false,
       completedAt: payload.isCompleted ? existing?.completedAt ?? now : existing?.completedAt ?? null,
       mainColor: payload.mainColor,
-      tagIds: [...payload.tagIds],
+      tagIds: normalizedTagIds,
       alarmEnabled: payload.alarmEnabled,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -468,9 +469,10 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     state.version = payload.version ?? STATE_VERSION
     const remoteTags = (payload.tags ?? {}) as Record<string, Tag>
     const remoteTasks = (payload.mainTasks ?? payload.tasks ?? {}) as Record<string, MainTask>
+    const normalizedTasks = normalizeMainTasks(remoteTasks)
     const remoteSubTasks = flattenSubTasksPayload(payload.subTasks ?? payload.subtasks ?? null)
     overwriteRecord(state.tags, remoteTags)
-    overwriteRecord(state.tasks, remoteTasks)
+    overwriteRecord(state.tasks, normalizedTasks)
     overwriteRecord(state.subtasks, remoteSubTasks)
     applyPreferences(payload.preferences ?? undefined)
   }
@@ -505,14 +507,26 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     Object.assign(state.preferences.alarm, updates)
   }
 
-  function queueSet(reference: DatabaseReference | null, payload: unknown, context: string) {
-    if (!reference) return
-    set(reference, cloneValue(payload)).catch((error) => {
-      console.error(`[Workspace] Failed to ${context}`, error)
-      workspaceError.value = error?.message ?? '데이터 동기화에 실패했습니다.'
-    })
-  }
+function queueSet(reference: DatabaseReference | null, payload: unknown, context: string) {
+  if (!reference) return
+  set(reference, cloneValue(payload)).catch((error) => {
+    console.error(`[Workspace] Failed to ${context}`, error)
+    workspaceError.value = error?.message ?? '데이터 동기화에 실패했습니다.'
+  })
+}
 })
+
+function normalizeMainTasks(tasks: Record<string, MainTask>) {
+  const normalized: Record<string, MainTask> = {}
+  Object.entries(tasks).forEach(([id, task]) => {
+    if (!task) return
+    normalized[id] = {
+      ...task,
+      tagIds: sanitizeTagIds(task.tagIds),
+    }
+  })
+  return normalized
+}
 
 function overwriteRecord<T extends { id: string }>(target: Record<string, T>, source: Record<string, T>) {
   Object.keys(target).forEach((key) => delete target[key])
@@ -542,6 +556,16 @@ function cloneValue<T>(value: T): T {
     return value
   }
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function sanitizeTagIds(input: unknown): string[] {
+  if (Array.isArray(input)) {
+    return input.filter((id): id is string => typeof id === 'string' && id.length > 0)
+  }
+  if (isPlainRecord(input)) {
+    return Object.values(input).filter((id): id is string => typeof id === 'string' && id.length > 0)
+  }
+  return []
 }
 
 type RemoteSubTasksPayload = Record<string, unknown> | null | undefined

@@ -42,7 +42,7 @@ function toggleSub(updated: SubTask) {
           v-for="task in dueTodayMain"
           :key="task.id"
           :task="task"
-          :tags="visibleTags.filter((tag) => task.tagIds.includes(tag.id))"
+          :tags="visibleTags.filter((tag) => (task.tagIds ?? []).includes(tag.id))"
           :subtasks="workspace.getSubTasksForTask(task.id)"
           @open="openTask"
           @toggle-complete="toggleMain"

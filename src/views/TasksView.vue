@@ -31,9 +31,10 @@ const filteredTasks = computed(() => {
       !query ||
       task.title.toLowerCase().includes(query) ||
       task.description.toLowerCase().includes(query)
+    const taskTagIds = task.tagIds ?? []
     const matchesTags =
       !selectedTags.value.length ||
-      selectedTags.value.every((tagId) => task.tagIds.includes(tagId))
+      selectedTags.value.every((tagId) => taskTagIds.includes(tagId))
     return matchesCompleted && matchesQuery && matchesTags
   })
 })
@@ -102,7 +103,7 @@ function createSubTask() {
         v-for="task in filteredTasks"
         :key="task.id"
         :task="task"
-        :tags="visibleTags.filter((tag) => task.tagIds.includes(tag.id))"
+        :tags="visibleTags.filter((tag) => (task.tagIds ?? []).includes(tag.id))"
         :subtasks="workspace.getSubTasksForTask(task.id)"
         @open="openTask"
         @toggle-complete="toggleComplete"

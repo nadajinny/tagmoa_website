@@ -21,9 +21,10 @@ const { visibleTags, allMainTasks } = storeToRefs(workspace)
 const taskId = computed(() => route.params.id as string)
 const task = computed(() => workspace.getMainTask(taskId.value))
 const subtasks = computed(() => workspace.getSubTasksForTask(taskId.value))
-const tagItems = computed(() =>
-  visibleTags.value.filter((tag) => task.value?.tagIds.includes(tag.id)),
-)
+const tagItems = computed(() => {
+  const activeTagIds = task.value?.tagIds ?? []
+  return visibleTags.value.filter((tag) => activeTagIds.includes(tag.id))
+})
 
 const prioritizedMainTasks = computed<MainTask[]>(() => {
   const tasks = [...allMainTasks.value]

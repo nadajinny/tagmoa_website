@@ -354,6 +354,8 @@ function submit() {
   align-items: center;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   min-height: var(--main-task-chip-height);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .main-task-chip div {
@@ -362,6 +364,7 @@ function submit() {
   align-items: flex-start;
   text-align: left;
   gap: 0.1rem;
+  min-width: 0;
 }
 
 .main-task-chip .color {
@@ -372,12 +375,19 @@ function submit() {
 
 .main-task-chip strong {
   display: block;
+  width: 100%;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .main-task-chip p {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
+  width: 100%;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .main-task-chip.selected {

@@ -54,7 +54,7 @@ watch(
       endDate.value = null
     }
     alarmEnabled.value = task.alarmEnabled
-    tagIds.value = [...task.tagIds]
+    tagIds.value = [...(task.tagIds ?? [])]
     color.value = task.mainColor
   },
   { immediate: true },
