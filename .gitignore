@@ -28,6 +28,14 @@ coverage
 
 .eslintcache
 
+# Environment configuration
+.env
+.env.*
+!.env.example
+
+# Google Search Console verification files
+public/google*.html
+
 # Cypress
 /cypress/videos/
 /cypress/screenshots/
