@@ -150,12 +150,15 @@ function toggleNav() {
   flex: 1;
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   gap: 2rem;
 }
 
 .app-layout__content {
-  flex: 1;
+  flex: 1 1 1120px;
   min-width: 0;
+  max-width: 1120px;
+  width: 100%;
 }
 
 .side-panel__placeholder {
@@ -167,15 +170,23 @@ function toggleNav() {
   .app-layout {
     flex-direction: column;
     padding: 1rem 1.25rem 120px;
+    align-items: center;
   }
 
   .app-layout__sidebar {
     width: 100%;
     position: static;
+    display: flex;
+    justify-content: center;
+  }
+
+  .app-layout__sidebar :deep(.side-nav) {
+    width: min(100%, 520px);
   }
 
   .app-layout__main {
     flex-direction: column;
+    width: 100%;
   }
 }
 </style>

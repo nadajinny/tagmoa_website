@@ -24,10 +24,10 @@ const emit = defineEmits<{
 }>()
 
 const items: NavItem[] = [
-  { name: 'home', label: '홈', to: '/', icon: Home },
-  { name: 'tasks', label: '태스크', to: '/tasks', icon: ListTodo },
-  { name: 'calendar', label: '캘린더', to: '/calendar', icon: CalendarDays },
-  { name: 'profile', label: '프로필', to: '/profile', icon: UserRound },
+  { name: 'home', label: '홈', to: '/app', icon: Home },
+  { name: 'tasks', label: '태스크', to: '/app/tasks', icon: ListTodo },
+  { name: 'calendar', label: '캘린더', to: '/app/calendar', icon: CalendarDays },
+  { name: 'profile', label: '프로필', to: '/app/profile', icon: UserRound },
 ]
 
 const route = useRoute()
@@ -163,6 +163,8 @@ const activeName = computed(() => (route.name as string) ?? 'home')
   .side-nav {
     flex-direction: row;
     align-items: center;
+    justify-content: center;
+    align-content: center;
     border-radius: 20px;
     padding: 0.75rem 1rem;
     flex-wrap: wrap;

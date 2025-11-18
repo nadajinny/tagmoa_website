@@ -112,6 +112,11 @@ function handleCreateTag() {
   gap: 1rem;
 }
 
+.tag-row :deep(.tag-chip) {
+  font-size: var(--text-size-base);
+  padding: 0.45rem 1.1rem;
+}
+
 .tag-row__actions {
   display: inline-flex;
   gap: 0.5rem;

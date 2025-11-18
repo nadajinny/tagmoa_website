@@ -58,7 +58,7 @@ async function saveProfile() {
 
 async function signOut() {
   await auth.signOut()
-  router.push({ name: 'login' })
+  router.push({ name: 'landing' })
 }
 
 async function disconnectAccount() {
@@ -72,7 +72,7 @@ async function disconnectAccount() {
   unlinking.value = true
   try {
     await auth.disconnectAccount()
-    router.push({ name: 'login' })
+    router.push({ name: 'landing' })
   } catch (error) {
     unlinkError.value =
       (error instanceof Error && error.message) || auth.authError || '연동 해제 중 오류가 발생했습니다.'

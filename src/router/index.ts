@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const AppLayout = () => import('../layouts/AppLayout.vue')
+const LandingView = () => import('../views/LandingView.vue')
 const HomeView = () => import('../views/HomeView.vue')
 const TasksView = () => import('../views/TasksView.vue')
 const TaskDetailView = () => import('../views/TaskDetailView.vue')
@@ -14,16 +15,26 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/',
+      name: 'landing',
+      component: LandingView,
+      meta: { public: true },
+    },
+    {
       path: '/login',
       name: 'login',
       component: LoginView,
       meta: { public: true },
     },
     {
-      path: '/',
+      path: '/app',
       component: AppLayout,
       children: [
-        { path: '', name: 'home', component: HomeView },
+        {
+          path: '',
+          name: 'home',
+          component: HomeView,
+        },
         { path: 'tasks', name: 'tasks', component: TasksView },
         {
           path: 'tasks/:id',
@@ -46,9 +57,9 @@ router.beforeEach(async (to) => {
   const auth = useAuthStore()
   await auth.ensureAuthReady()
   if (!to.meta.public && !auth.session) {
-    return { name: 'login' }
+    return { name: 'landing' }
   }
-  if (to.name === 'login' && auth.session) {
+  if ((to.name === 'login' || to.name === 'landing') && auth.session) {
     return { name: 'home' }
   }
   return true

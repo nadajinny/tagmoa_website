@@ -145,6 +145,11 @@ function createSubTask() {
   gap: 0.5rem;
 }
 
+.tags :deep(.tag-chip) {
+  font-size: var(--text-size-base);
+  padding: 0.45rem 1.1rem;
+}
+
 .task-list {
   display: flex;
   flex-direction: column;

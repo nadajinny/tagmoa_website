@@ -169,9 +169,9 @@ const statusTone = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.2rem 0.8rem;
+  padding: 0.35rem 0.9rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: var(--text-size-base);
   background-color: var(--surface-muted);
 }
 
