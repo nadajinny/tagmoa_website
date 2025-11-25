@@ -6,7 +6,7 @@ import EmptyState from '../components/ui/EmptyState.vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useTodayGoalsStore } from '../stores/todayGoals'
 import type { MainTask, SubTask } from '../types/models'
-import { formatDateRange, formatTime } from '../utils/dates'
+import { formatDate } from '../utils/dates'
 
 const workspace = useWorkspaceStore()
 const { allSubTasks, allMainTasks } = storeToRefs(workspace)
@@ -15,6 +15,7 @@ const goalStore = useTodayGoalsStore()
 const { goalIds } = storeToRefs(goalStore)
 
 const search = ref('')
+const listSortMode = ref<'priority' | 'deadline'>('priority')
 const isDropActive = ref(false)
 const dragSource = ref<'pool' | 'goal' | null>(null)
 const draggedGoalIndex = ref<number | null>(null)
@@ -52,7 +53,7 @@ watchEffect(() => {
 
 const availableSubTasks = computed(() => {
   const query = search.value.trim().toLowerCase()
-  return allSubTasks.value.filter((task) => {
+  const filtered = allSubTasks.value.filter((task) => {
     if (task.isCompleted) return false
     if (goalIds.value.includes(task.id)) return false
     if (!query) return true
@@ -62,6 +63,10 @@ const availableSubTasks = computed(() => {
       task.content.toLowerCase().includes(query) || parentTitle.includes(query)
     )
   })
+  const sorted = [...filtered].sort((a, b) => {
+    return listSortMode.value === 'deadline' ? compareByDeadline(a, b) : compareByPriority(a, b)
+  })
+  return sorted
 })
 
 type GoalCard = {
@@ -69,8 +74,8 @@ type GoalCard = {
   task: SubTask
   parentTitle: string
   parentColor: string
-  scheduleLabel: string
-  timeLabel: string
+  endLabel: string
+  dueLabel: string
 }
 
 const goalCards = computed<GoalCard[]>(() =>
@@ -84,33 +89,51 @@ const goalCards = computed<GoalCard[]>(() =>
         task,
         parentTitle: parent?.title ?? '주요 일정 없음',
         parentColor: parent?.mainColor ?? '#dfe6ff',
-        scheduleLabel: formatDateRange(task.startDate, task.endDate) || '기간 미정',
-        timeLabel: buildTimeLabel(task),
+        endLabel: formatEndLabel(task.endDate),
+        dueLabel: formatDueLabel(task.dueDate),
       }
     })
     .filter((card): card is GoalCard => Boolean(card)),
 )
 
-function buildTimeLabel(task: SubTask) {
-  const start = formatTime(task.startDate)
-  const end = formatTime(task.endDate)
-  if (start && end) {
-    if (start === end) return start
-    return `${start} ~ ${end}`
-  }
-  return start || end || ''
-}
+const goalSummary = computed(() =>
+  goalCards.value.length
+    ? `현재 ${goalCards.value.length}개 집중 중`
+    : '드래그해서 오늘 집중할 일정을 채워보세요.',
+)
 
 function formatParentLabel(task: SubTask) {
   return mainTaskLookup.value[task.mainTaskId]?.title ?? '주요 일정 없음'
 }
 
-function formatSchedule(task: SubTask) {
-  const schedule = formatDateRange(task.startDate, task.endDate)
-  if (schedule && buildTimeLabel(task)) {
-    return `${schedule} · ${buildTimeLabel(task)}`
+function formatEndLabel(ts: number | null) {
+  if (!ts) return ''
+  return formatDate(ts, 'MM월 dd일 (EEE)')
+}
+
+function formatDueLabel(ts: number | null) {
+  if (!ts) return ''
+  return formatDate(ts, 'MM월 dd일 (EEE)')
+}
+
+function compareByPriority(a: SubTask, b: SubTask) {
+  if (a.priority !== b.priority) {
+    return b.priority - a.priority
   }
-  return schedule || buildTimeLabel(task) || ''
+  return compareByDeadline(a, b)
+}
+
+function compareByDeadline(a: SubTask, b: SubTask) {
+  const deadlineA = getDeadlineAnchor(a)
+  const deadlineB = getDeadlineAnchor(b)
+  if (deadlineA !== deadlineB) {
+    return deadlineA - deadlineB
+  }
+  return a.content.localeCompare(b.content, 'ko-KR')
+}
+
+function getDeadlineAnchor(task: SubTask) {
+  return task.dueDate ?? task.endDate ?? Number.MAX_SAFE_INTEGER
 }
 
 function assignGoal(id: string) {
@@ -220,6 +243,25 @@ function getDraggedGoalIndex(event: DragEvent) {
           class="goal-search"
           placeholder="세부 일정 내용, 주요 일정으로 검색"
         />
+        <div class="goal-sort" role="group" aria-label="세부 일정 정렬 방식">
+          <span class="goal-sort__label">정렬</span>
+          <div class="goal-sort__options">
+            <button
+              type="button"
+              :class="['goal-sort__option', { 'goal-sort__option--active': listSortMode === 'priority' }]"
+              @click="listSortMode = 'priority'"
+            >
+              중요도 순
+            </button>
+            <button
+              type="button"
+              :class="['goal-sort__option', { 'goal-sort__option--active': listSortMode === 'deadline' }]"
+              @click="listSortMode = 'deadline'"
+            >
+              마감일 순
+            </button>
+          </div>
+        </div>
         <ul v-if="availableSubTasks.length" class="goal-pool">
           <li
             v-for="task in availableSubTasks"
@@ -240,7 +282,12 @@ function getDraggedGoalIndex(event: DragEvent) {
             </div>
             <small class="pool-card__meta">
               {{ formatParentLabel(task) }}
-              <template v-if="formatSchedule(task)"> · {{ formatSchedule(task) }}</template>
+              <template v-if="formatEndLabel(task.endDate)">
+                · 마감일 {{ formatEndLabel(task.endDate) }}
+              </template>
+              <template v-if="formatDueLabel(task.dueDate)">
+                · 마감 {{ formatDueLabel(task.dueDate) }}
+              </template>
             </small>
           </li>
         </ul>
@@ -256,6 +303,7 @@ function getDraggedGoalIndex(event: DragEvent) {
           <div>
             <p class="pill-muted">Focus</p>
             <h2>오늘의 목표</h2>
+            <p class="goal-column__sub">{{ goalSummary }}</p>
           </div>
           <button
             class="btn-link"
@@ -268,7 +316,10 @@ function getDraggedGoalIndex(event: DragEvent) {
         </header>
         <div
           class="goal-dropzone"
-          :class="{ 'goal-dropzone--active': isDropActive }"
+          :class="{
+            'goal-dropzone--active': isDropActive,
+            'goal-dropzone--filled': goalCards.length,
+          }"
           @dragenter="onDropZoneEnter"
           @dragover.prevent="onDropZoneEnter"
           @dragleave="onDropZoneLeave"
@@ -301,12 +352,8 @@ function getDraggedGoalIndex(event: DragEvent) {
                 </p>
                 <small class="goal-card__meta">
                   {{ goal.parentTitle }}
-                  <template v-if="goal.scheduleLabel">
-                    · {{ goal.scheduleLabel }}
-                  </template>
-                  <template v-if="goal.timeLabel">
-                    · {{ goal.timeLabel }}
-                  </template>
+                  <template v-if="goal.endLabel"> · 마감일 {{ goal.endLabel }}</template>
+                  <template v-if="goal.dueLabel"> · 마감 {{ goal.dueLabel }}</template>
                 </small>
               </div>
               <div class="goal-card__actions">
@@ -345,6 +392,13 @@ function getDraggedGoalIndex(event: DragEvent) {
   gap: 0.75rem;
 }
 
+.goal-column__sub {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 .goal-column__count {
   font-weight: 600;
   color: var(--text-muted);
@@ -355,6 +409,43 @@ function getDraggedGoalIndex(event: DragEvent) {
   border-radius: 18px;
   padding: 0.85rem 1rem;
   font-size: var(--text-size-base);
+}
+
+.goal-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.goal-sort__label {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.goal-sort__options {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(25, 30, 58, 0.05);
+}
+
+.goal-sort__option {
+  border: none;
+  background: transparent;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.goal-sort__option--active {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(25, 30, 58, 0.18);
 }
 
 .goal-pool {
@@ -415,6 +506,27 @@ function getDraggedGoalIndex(event: DragEvent) {
   flex: 1;
 }
 
+.goal-column--target {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  background: linear-gradient(135deg, rgba(84, 118, 255, 0.22), rgba(255, 255, 255, 0.7));
+  box-shadow: 0 18px 40px rgba(69, 94, 200, 0.18);
+}
+
+.goal-column--target::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 32px;
+  border: 1px solid rgba(84, 118, 255, 0.25);
+  pointer-events: none;
+}
+
+.goal-column--target > * {
+  position: relative;
+}
+
 .goal-dropzone {
   border: 2px dashed rgba(51, 65, 92, 0.2);
   border-radius: 28px;
@@ -430,6 +542,12 @@ function getDraggedGoalIndex(event: DragEvent) {
 .goal-dropzone--active {
   border-color: var(--brand-primary);
   background: rgba(84, 118, 255, 0.15);
+}
+
+.goal-dropzone--filled {
+  border-color: rgba(84, 118, 255, 0.35);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: inset 0 0 0 1px rgba(84, 118, 255, 0.08);
 }
 
 .goal-dropzone__hint {
@@ -457,13 +575,14 @@ function getDraggedGoalIndex(event: DragEvent) {
 .goal-card {
   border-radius: 20px;
   padding: 1rem;
-  background: #fff;
-  border: 1px solid rgba(25, 30, 58, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(84, 118, 255, 0.25);
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 0.75rem;
   align-items: center;
   cursor: grab;
+  box-shadow: 0 12px 30px rgba(52, 70, 175, 0.16);
 }
 
 .goal-card__badge {
