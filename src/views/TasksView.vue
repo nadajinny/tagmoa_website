@@ -20,6 +20,7 @@ const search = ref('')
 const subSearch = ref('')
 const selectedTags = ref<string[]>([])
 const viewMode = ref<'main' | 'sub'>('main')
+const subSortMode = ref<'priority' | 'deadline'>('priority')
 const priorityIcons = ['💡', '🔥', '🚀', '⭐️'] as const
 
 const showCompleted = computed({
@@ -80,18 +81,7 @@ const filteredSubTasks = computed<SubTaskRow[]>(() => {
       })
     : base
 
-  const sorted = [...matching].sort((a, b) => {
-    if (showCompleted.value && a.isCompleted !== b.isCompleted) {
-      return a.isCompleted ? 1 : -1
-    }
-    if (a.priority !== b.priority) return b.priority - a.priority
-    const dateA = getSubTaskSortDate(a)
-    const dateB = getSubTaskSortDate(b)
-    if (dateA === dateB) {
-      return a.content.localeCompare(b.content, 'ko-KR')
-    }
-    return dateA - dateB
-  })
+  const sorted = [...matching].sort((a, b) => compareSubTasks(a, b))
 
   return sorted.map((task) => {
     const parent = map[task.mainTaskId]
@@ -105,13 +95,37 @@ const filteredSubTasks = computed<SubTaskRow[]>(() => {
   })
 })
 
-function getSubTaskSortDate(task: SubTask) {
-  return (
-    task.endDate ??
-    task.startDate ??
-    task.dueDate ??
-    Number.MAX_SAFE_INTEGER
-  )
+function compareSubTasks(a: SubTask, b: SubTask) {
+  if (showCompleted.value && a.isCompleted !== b.isCompleted) {
+    return a.isCompleted ? 1 : -1
+  }
+  return subSortMode.value === 'deadline'
+    ? compareByDeadline(a, b)
+    : compareByPriority(a, b)
+}
+
+function compareByPriority(a: SubTask, b: SubTask) {
+  if (a.priority !== b.priority) return b.priority - a.priority
+  const dateA = getSubTaskScheduleAnchor(a)
+  const dateB = getSubTaskScheduleAnchor(b)
+  if (dateA !== dateB) return dateA - dateB
+  return a.content.localeCompare(b.content, 'ko-KR')
+}
+
+function compareByDeadline(a: SubTask, b: SubTask) {
+  const deadlineA = getSubTaskDeadlineAnchor(a)
+  const deadlineB = getSubTaskDeadlineAnchor(b)
+  if (deadlineA !== deadlineB) return deadlineA - deadlineB
+  if (a.priority !== b.priority) return b.priority - a.priority
+  return a.content.localeCompare(b.content, 'ko-KR')
+}
+
+function getSubTaskScheduleAnchor(task: SubTask) {
+  return task.endDate ?? task.startDate ?? task.dueDate ?? Number.MAX_SAFE_INTEGER
+}
+
+function getSubTaskDeadlineAnchor(task: SubTask) {
+  return task.dueDate ?? task.endDate ?? task.startDate ?? Number.MAX_SAFE_INTEGER
 }
 
 function toggleTag(tagId: string) {
@@ -229,11 +243,31 @@ function buildTimeLabel(task: SubTask) {
     <section v-else class="subtask-panel card-surface">
       <div class="subtask-panel__filters">
         <input v-model="subSearch" type="search" placeholder="세부 일정 내용, 주요 일정으로 검색" />
-        <label class="toggle">
+        <p class="subtask-panel__count">총 {{ filteredSubTasks.length }}건</p>
+        <div class="subtask-panel__filter-divider" />
+        <label class="toggle subtask-panel__toggle">
           <input v-model="showCompleted" type="checkbox" />
           완료된 일정 표시
         </label>
-        <p class="subtask-panel__count">총 {{ filteredSubTasks.length }}건</p>
+        <div class="subtask-sort" role="group" aria-label="세부 일정 정렬 방식">
+          <span class="subtask-sort__label">정렬</span>
+          <div class="subtask-sort__options">
+            <button
+              type="button"
+              :class="['subtask-sort__option', { 'subtask-sort__option--active': subSortMode === 'priority' }]"
+              @click="subSortMode = 'priority'"
+            >
+              중요도 순
+            </button>
+            <button
+              type="button"
+              :class="['subtask-sort__option', { 'subtask-sort__option--active': subSortMode === 'deadline' }]"
+              @click="subSortMode = 'deadline'"
+            >
+              마감일 임박 순
+            </button>
+          </div>
+        </div>
       </div>
 
       <ul v-if="filteredSubTasks.length" class="subtask-panel__list">
@@ -384,23 +418,115 @@ function buildTimeLabel(task: SubTask) {
 .subtask-panel__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.8rem;
+  gap: 0.75rem;
   align-items: center;
+  padding: 1rem 1.25rem;
+  border-radius: 24px;
+  background: transparent;
+  border: none;
 }
 
 .subtask-panel__filters input[type='search'] {
   flex: 1;
   min-width: 240px;
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 0.9rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 0.95rem 1.1rem;
   font-size: var(--text-size-base);
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(25, 30, 58, 0.08);
+}
+
+.subtask-panel__filter-divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(25, 30, 58, 0.12);
+  min-height: 32px;
+}
+
+.subtask-panel__toggle {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(25, 30, 58, 0.1);
 }
 
 .subtask-panel__count {
   margin-left: auto;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+.subtask-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(25, 30, 58, 0.1);
+}
+
+.subtask-sort__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-left: 0.4rem;
+}
+
+.subtask-sort__options {
+  display: inline-flex;
+  background: rgba(84, 118, 255, 0.12);
+  border-radius: 999px;
+  padding: 0.2rem;
+  gap: 0.25rem;
+}
+
+.subtask-sort__option {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.subtask-sort__option--active {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(25, 30, 58, 0.18);
+}
+
+@media (max-width: 720px) {
+  .subtask-panel__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .subtask-panel__count,
+  .subtask-panel__filter-divider {
+    align-self: flex-start;
+  }
+
+  .subtask-panel__filter-divider {
+    display: none;
+  }
+
+  .subtask-panel__count {
+    margin-left: 0;
+  }
+
+  .subtask-sort {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .subtask-sort__options {
+    flex: 1;
+    justify-content: space-between;
+  }
 }
 
 .subtask-panel__list {
