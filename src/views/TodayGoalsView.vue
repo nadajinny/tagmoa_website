@@ -413,14 +413,6 @@ function toggleGoalCompletion(task: SubTask) {
               @drop="onGoalDrop($event, index)"
               :class="{ 'goal-card--done': goal.isCompleted }"
             >
-              <label class="goal-card__checkbox">
-                <input
-                  type="checkbox"
-                  :checked="goal.isCompleted"
-                  @change="toggleGoalCompletion(goal.task)"
-                />
-                <span />
-              </label>
               <span class="goal-card__bullet" :style="{ backgroundColor: goal.parentColor }" />
               <div class="goal-card__body">
                 <p class="goal-card__title">
@@ -435,6 +427,14 @@ function toggleGoalCompletion(task: SubTask) {
                   <template v-if="goal.dueLabel"> · 마감 {{ goal.dueLabel }}</template>
                 </small>
               </div>
+              <label class="goal-card__checkbox">
+                <input
+                  type="checkbox"
+                  :checked="goal.isCompleted"
+                  @change="toggleGoalCompletion(goal.task)"
+                />
+                <span />
+              </label>
             </li>
           </ul>
         </div>
@@ -678,6 +678,7 @@ function toggleGoalCompletion(task: SubTask) {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  flex: 1;
 }
  
 .goal-card--done .goal-card__title {
@@ -694,6 +695,7 @@ function toggleGoalCompletion(task: SubTask) {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  margin-left: auto;
 }
 
 .goal-card__checkbox input {

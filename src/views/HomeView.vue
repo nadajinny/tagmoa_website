@@ -126,10 +126,6 @@ function formatDateLabel(ts: number | null) {
       </header>
       <div v-if="todayGoals.length" class="goal-highlight">
         <article v-for="goal in todayGoals" :key="goal.id" class="goal-highlight__item">
-          <label class="goal-highlight__checkbox">
-            <input type="checkbox" @change="completeGoal(goal)" />
-            <span />
-          </label>
           <span class="goal-highlight__badge" :style="{ backgroundColor: goal.parentColor }" />
           <div class="goal-highlight__body">
             <p class="goal-highlight__title">
@@ -146,6 +142,10 @@ function formatDateLabel(ts: number | null) {
               </template>
             </small>
           </div>
+          <label class="goal-highlight__checkbox goal-highlight__checkbox--right">
+            <input type="checkbox" @change="completeGoal(goal)" />
+            <span />
+          </label>
         </article>
       </div>
       <EmptyState
@@ -270,6 +270,12 @@ function formatDateLabel(ts: number | null) {
   margin-top: 0.2rem;
 }
 
+.goal-highlight__checkbox--right {
+  margin-left: auto;
+  margin-top: 0;
+  align-self: center;
+}
+
 .goal-highlight__checkbox input {
   display: none;
 }
@@ -291,6 +297,7 @@ function formatDateLabel(ts: number | null) {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+  flex: 1;
 }
 
 .goal-highlight__title {
