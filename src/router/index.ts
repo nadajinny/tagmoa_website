@@ -8,6 +8,7 @@ const TasksView = () => import('../views/TasksView.vue')
 const TaskDetailView = () => import('../views/TaskDetailView.vue')
 const TagManagementView = () => import('../views/TagManagementView.vue')
 const CalendarView = () => import('../views/CalendarView.vue')
+const TodayGoalsView = () => import('../views/TodayGoalsView.vue')
 const ProfileView = () => import('../views/ProfileView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 
@@ -36,6 +37,7 @@ const router = createRouter({
           component: HomeView,
         },
         { path: 'tasks', name: 'tasks', component: TasksView },
+        { path: 'today', name: 'today-goals', component: TodayGoalsView },
         {
           path: 'tasks/:id',
           name: 'task-detail',
