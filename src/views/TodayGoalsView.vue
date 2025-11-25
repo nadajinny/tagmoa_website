@@ -12,11 +12,12 @@ const workspace = useWorkspaceStore()
 const { allSubTasks, allMainTasks } = storeToRefs(workspace)
 
 const goalStore = useTodayGoalsStore()
-const { goalIds } = storeToRefs(goalStore)
+const { goalIds, completedIds, stats: goalStats } = storeToRefs(goalStore)
 
 const search = ref('')
 const listSortMode = ref<'priority' | 'deadline'>('priority')
 const isDropActive = ref(false)
+const isPoolDropActive = ref(false)
 const dragSource = ref<'pool' | 'goal' | null>(null)
 const draggedGoalIndex = ref<number | null>(null)
 
@@ -43,7 +44,7 @@ onMounted(() => {
 })
 
 watchEffect(() => {
-  const ids = [...goalIds.value]
+  const ids = [...goalIds.value, ...completedIds.value]
   ids.forEach((id) => {
     if (!subTaskLookup.value[id]) {
       goalStore.removeGoal(id)
@@ -76,10 +77,11 @@ type GoalCard = {
   parentColor: string
   endLabel: string
   dueLabel: string
+  isCompleted: boolean
 }
 
-const goalCards = computed<GoalCard[]>(() =>
-  goalIds.value
+const goalCards = computed<GoalCard[]>(() => {
+  const active = goalIds.value
     .map((id) => {
       const task = subTaskLookup.value[id]
       if (!task) return null
@@ -91,16 +93,37 @@ const goalCards = computed<GoalCard[]>(() =>
         parentColor: parent?.mainColor ?? '#dfe6ff',
         endLabel: formatEndLabel(task.endDate),
         dueLabel: formatDueLabel(task.dueDate),
+        isCompleted: false,
       }
     })
-    .filter((card): card is GoalCard => Boolean(card)),
-)
+    .filter((card): card is GoalCard & { isCompleted: false } => Boolean(card))
 
-const goalSummary = computed(() =>
-  goalCards.value.length
-    ? `현재 ${goalCards.value.length}개 집중 중`
-    : '드래그해서 오늘 집중할 일정을 채워보세요.',
-)
+  const completed = completedIds.value
+    .map((id) => {
+      const task = subTaskLookup.value[id]
+      if (!task) return null
+      const parent = mainTaskLookup.value[task.mainTaskId]
+      return {
+        id,
+        task,
+        parentTitle: parent?.title ?? '주요 일정 없음',
+        parentColor: parent?.mainColor ?? '#dfe6ff',
+        endLabel: formatEndLabel(task.endDate),
+        dueLabel: formatDueLabel(task.dueDate),
+        isCompleted: true,
+      }
+    })
+    .filter((card): card is GoalCard & { isCompleted: true } => Boolean(card))
+
+  return [...active, ...completed]
+})
+
+const goalSummary = computed(() => {
+  if (!goalStats.value.total) {
+    return '드래그해서 오늘 집중할 일정을 채워보세요.'
+  }
+  return `완료 ${goalStats.value.completed} / ${goalStats.value.total}`
+})
 
 function formatParentLabel(task: SubTask) {
   return mainTaskLookup.value[task.mainTaskId]?.title ?? '주요 일정 없음'
@@ -140,10 +163,6 @@ function assignGoal(id: string) {
   goalStore.assignGoal(id)
 }
 
-function removeGoal(id: string) {
-  goalStore.removeGoal(id)
-}
-
 function startPoolDrag(event: DragEvent, id: string) {
   dragSource.value = 'pool'
   event.dataTransfer?.setData('text/plain', id)
@@ -160,6 +179,7 @@ function endDrag() {
   dragSource.value = null
   draggedGoalIndex.value = null
   isDropActive.value = false
+  isPoolDropActive.value = false
 }
 
 function onDropZoneEnter(event: DragEvent) {
@@ -221,6 +241,41 @@ function getDraggedGoalIndex(event: DragEvent) {
   if (Number.isNaN(parsed)) return null
   return parsed
 }
+
+function onPoolDragEnter(event: DragEvent) {
+  if (dragSource.value !== 'goal') return
+  event.preventDefault()
+  isPoolDropActive.value = true
+}
+
+function onPoolDragLeave(event: DragEvent) {
+  if (dragSource.value !== 'goal') return
+  const related = event.relatedTarget as HTMLElement | null
+  const current = event.currentTarget as HTMLElement | null
+  if (!current || !related || !current.contains(related)) {
+    isPoolDropActive.value = false
+  }
+}
+
+function onPoolDrop(event: DragEvent) {
+  if (dragSource.value !== 'goal') return
+  event.preventDefault()
+  const id = event.dataTransfer?.getData('text/plain')
+  if (id) {
+    goalStore.removeGoal(id)
+  }
+  endDrag()
+}
+
+function toggleGoalCompletion(task: SubTask) {
+  const nextState = !task.isCompleted
+  workspace.toggleSubCompletion(task.id, nextState)
+  if (nextState) {
+    goalStore.markGoalCompleted(task.id)
+  } else if (!goalStore.isGoal(task.id)) {
+    goalStore.assignGoal(task.id)
+  }
+}
 </script>
 
 <template>
@@ -262,7 +317,14 @@ function getDraggedGoalIndex(event: DragEvent) {
             </button>
           </div>
         </div>
-        <ul v-if="availableSubTasks.length" class="goal-pool">
+        <ul
+          v-if="availableSubTasks.length"
+          :class="['goal-pool', { 'goal-pool--drop': isPoolDropActive }]"
+          @dragenter="onPoolDragEnter"
+          @dragover.prevent="onPoolDragEnter"
+          @dragleave="onPoolDragLeave"
+          @drop="onPoolDrop"
+        >
           <li
             v-for="task in availableSubTasks"
             :key="task.id"
@@ -291,11 +353,20 @@ function getDraggedGoalIndex(event: DragEvent) {
             </small>
           </li>
         </ul>
-        <EmptyState
+        <div
           v-else
-          title="할당 가능한 세부 일정이 없어요"
-          message="검색 키워드를 조정하거나 새로운 세부 일정을 추가해보세요."
-        />
+          class="goal-pool__empty"
+          :class="{ 'goal-pool--drop': isPoolDropActive }"
+          @dragenter="onPoolDragEnter"
+          @dragover.prevent="onPoolDragEnter"
+          @dragleave="onPoolDragLeave"
+          @drop="onPoolDrop"
+        >
+          <EmptyState
+            title="할당 가능한 세부 일정이 없어요"
+            message="검색 키워드를 조정하거나 새로운 세부 일정을 추가해보세요."
+          />
+        </div>
       </section>
 
       <section class="goal-column card-surface goal-column--target">
@@ -335,14 +406,22 @@ function getDraggedGoalIndex(event: DragEvent) {
             <li
               v-for="(goal, index) in goalCards"
               :key="goal.id"
-              class="goal-card"
               draggable="true"
               @dragstart="startGoalDrag($event, goal.id, index)"
               @dragend="endDrag"
               @dragover.prevent
               @drop="onGoalDrop($event, index)"
+              :class="{ 'goal-card--done': goal.isCompleted }"
             >
-              <div class="goal-card__badge" :style="{ backgroundColor: goal.parentColor }" />
+              <label class="goal-card__checkbox">
+                <input
+                  type="checkbox"
+                  :checked="goal.isCompleted"
+                  @change="toggleGoalCompletion(goal.task)"
+                />
+                <span />
+              </label>
+              <span class="goal-card__bullet" :style="{ backgroundColor: goal.parentColor }" />
               <div class="goal-card__body">
                 <p class="goal-card__title">
                   <span class="priority">
@@ -355,11 +434,6 @@ function getDraggedGoalIndex(event: DragEvent) {
                   <template v-if="goal.endLabel"> · 마감일 {{ goal.endLabel }}</template>
                   <template v-if="goal.dueLabel"> · 마감 {{ goal.dueLabel }}</template>
                 </small>
-              </div>
-              <div class="goal-card__actions">
-                <button class="ghost danger" type="button" @click="removeGoal(goal.id)">
-                  제거
-                </button>
               </div>
             </li>
           </ul>
@@ -457,6 +531,28 @@ function getDraggedGoalIndex(event: DragEvent) {
   gap: 0.9rem;
 }
 
+.goal-pool.goal-pool--drop {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.goal-pool__empty {
+  border: none;
+  border-radius: 22px;
+  padding: 1rem;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.goal-pool__empty.goal-pool--drop {
+  border: none;
+  background: transparent;
+}
+
 .pool-card {
   border: 1px solid rgba(25, 30, 58, 0.08);
   border-radius: 18px;
@@ -528,26 +624,13 @@ function getDraggedGoalIndex(event: DragEvent) {
 }
 
 .goal-dropzone {
-  border: 2px dashed rgba(51, 65, 92, 0.2);
-  border-radius: 28px;
+  border: none;
+  border-radius: 22px;
   min-height: 280px;
-  padding: 1.2rem;
-  background: rgba(255, 255, 255, 0.6);
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-}
-
-.goal-dropzone--active {
-  border-color: var(--brand-primary);
-  background: rgba(84, 118, 255, 0.15);
-}
-
-.goal-dropzone--filled {
-  border-color: rgba(84, 118, 255, 0.35);
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: inset 0 0 0 1px rgba(84, 118, 255, 0.08);
 }
 
 .goal-dropzone__hint {
@@ -557,10 +640,11 @@ function getDraggedGoalIndex(event: DragEvent) {
 
 .goal-dropzone__empty {
   border-radius: 20px;
-  background: rgba(25, 30, 58, 0.04);
+  border: 1px dashed rgba(25, 30, 58, 0.2);
   padding: 1.25rem;
   text-align: center;
   color: var(--text-muted);
+  background: #fff;
 }
 
 .goal-grid {
@@ -572,32 +656,64 @@ function getDraggedGoalIndex(event: DragEvent) {
   gap: 1rem;
 }
 
-.goal-card {
-  border-radius: 20px;
+.goal-grid li {
+  border: 1px solid rgba(25, 30, 58, 0.08);
+  border-radius: 18px;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(84, 118, 255, 0.25);
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  background: #fff;
+  display: flex;
   gap: 0.75rem;
   align-items: center;
   cursor: grab;
-  box-shadow: 0 12px 30px rgba(52, 70, 175, 0.16);
 }
 
-.goal-card__badge {
-  width: 12px;
-  height: 48px;
+.goal-card__bullet {
+  width: 10px;
+  height: 32px;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
-.goal-card__body {
+.goal-grid li .goal-card__body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
+ 
+.goal-card--done .goal-card__title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
 
-.goal-card__title {
+.goal-card__checkbox {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(84, 118, 255, 0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.goal-card__checkbox input {
+  display: none;
+}
+
+.goal-card__checkbox span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-image: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.goal-card__checkbox input:checked + span {
+  opacity: 1;
+}
+
+.goal-grid li .goal-card__title {
   font-weight: 700;
   font-size: 1.05rem;
   display: inline-flex;
@@ -605,49 +721,8 @@ function getDraggedGoalIndex(event: DragEvent) {
   gap: 0.4rem;
 }
 
-.goal-card__meta {
+.goal-grid li .goal-card__meta {
   color: var(--text-muted);
   font-size: 0.85rem;
-}
-
-.goal-card__actions {
-  display: inline-flex;
-  justify-self: flex-end;
-}
-
-.goal-card__actions .ghost {
-  border: 1px solid rgba(25, 30, 58, 0.12);
-  background: rgba(84, 118, 255, 0.08);
-  border-radius: 10px;
-  padding: 0.2rem 0.6rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.goal-card__actions .ghost:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.goal-card__actions .danger {
-  color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.12);
-  border-color: rgba(255, 107, 107, 0.4);
-}
-
-@media (max-width: 720px) {
-  .goal-card {
-    grid-template-columns: 6px 1fr;
-  }
-
-  .goal-card__badge {
-    height: 100%;
-  }
-
-  .goal-card__actions {
-    grid-column: 1 / -1;
-    display: flex;
-    justify-content: flex-end;
-  }
 }
 </style>

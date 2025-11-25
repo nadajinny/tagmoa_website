@@ -1,130 +1,273 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
+import { onValue, set, type DatabaseReference } from 'firebase/database'
+import { useAuthStore } from './auth'
+import { userTodayGoalsRef } from '../services/userDatabase'
 
-const STORAGE_KEY = 'tagmoa-today-goals'
+const LOCAL_STORAGE_KEY = 'tagmoa-today-goals'
 
-type GoalState = Record<string, string[]>
+export interface TodayGoalState {
+  order: string[]
+  completed: string[]
+  dateKey: string
+  updatedAt: number
+}
+
+interface TodayGoalSnapshot extends Partial<TodayGoalState> {}
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function loadStoredGoals(): GoalState {
-  if (typeof window === 'undefined') return {}
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object') {
-      return parsed as GoalState
-    }
-    return {}
-  } catch (error) {
-    console.warn('[TodayGoalsStore] Failed to parse stored data', error)
-    return {}
+function createBlankState(): TodayGoalState {
+  return {
+    order: [],
+    completed: [],
+    dateKey: getTodayKey(),
+    updatedAt: Date.now(),
   }
 }
 
-function persistGoals(state: GoalState) {
+function cloneState(state: TodayGoalState): TodayGoalState {
+  return {
+    order: [...state.order],
+    completed: [...state.completed],
+    dateKey: state.dateKey,
+    updatedAt: state.updatedAt,
+  }
+}
+
+function loadLocalState(): TodayGoalState {
+  if (typeof window === 'undefined') return createBlankState()
+  try {
+    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY)
+    if (!raw) return createBlankState()
+    const parsed = JSON.parse(raw) as TodayGoalSnapshot
+    return normalizeState(parsed)
+  } catch (error) {
+    console.warn('[TodayGoalsStore] Failed to parse local data', error)
+    return createBlankState()
+  }
+}
+
+function persistLocalState(state: TodayGoalState) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state))
+}
+
+function normalizeState(payload?: TodayGoalSnapshot | null): TodayGoalState {
+  if (!payload) return createBlankState()
+  const order = Array.isArray(payload.order) ? payload.order.filter(isString) : []
+  const completed = Array.isArray(payload.completed) ? payload.completed.filter(isString) : []
+  const dateKey = typeof payload.dateKey === 'string' ? payload.dateKey : getTodayKey()
+  const updatedAt =
+    typeof payload.updatedAt === 'number' && Number.isFinite(payload.updatedAt)
+      ? payload.updatedAt
+      : Date.now()
+  return {
+    order,
+    completed,
+    dateKey,
+    updatedAt,
+  }
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0
+}
+
+function replaceArray(target: string[], next: string[]) {
+  target.splice(0, target.length, ...next)
 }
 
 export const useTodayGoalsStore = defineStore('todayGoals', () => {
-  const goalsByDate = reactive<GoalState>(loadStoredGoals())
-  const selectedDate = ref(getTodayKey())
+  const auth = useAuthStore()
+  const state = reactive<TodayGoalState>(createBlankState())
+  const ready = ref(false)
+  let remoteRef: DatabaseReference | null = null
+  let unsubscribe: (() => void) | null = null
+  let suppressPersist = false
 
-  ensureBucket(selectedDate.value)
+  watch(
+    () => auth.session?.id ?? null,
+    (uid) => {
+      detachRemote()
+      if (uid) {
+        connectRemote(uid)
+      } else {
+        applyState(loadLocalState())
+        ready.value = true
+      }
+    },
+    { immediate: true },
+  )
 
-  const goalIds = computed(() => goalsByDate[selectedDate.value] ?? [])
-
-  function ensureBucket(dateKey: string) {
-    if (!goalsByDate[dateKey]) {
-      goalsByDate[dateKey] = []
+  const goalIds = computed(() => [...state.order])
+  const completedIds = computed(() => [...state.completed])
+  const stats = computed(() => {
+    const total = state.order.length + state.completed.length
+    const completed = state.completed.length
+    return {
+      total,
+      completed,
+      remaining: state.order.length,
+      hasGoals: total > 0,
     }
-    return goalsByDate[dateKey]
+  })
+
+  function ensureTodayRollup(persist = false) {
+    const todayKey = getTodayKey()
+    if (state.dateKey === todayKey) return
+    state.dateKey = todayKey
+    state.completed.splice(0)
+    state.updatedAt = Date.now()
+    if (persist) {
+      persistState()
+    }
   }
 
   function assignGoal(id: string, index?: number) {
-    const bucket = ensureBucket(selectedDate.value)
-    if (bucket.includes(id)) {
-      if (typeof index === 'number') {
-        reorderGoals(bucket.indexOf(id), index)
-      }
-      return
-    }
-    const targetIndex =
-      typeof index === 'number'
-        ? Math.max(0, Math.min(index, bucket.length))
-        : bucket.length
-    const next = [...bucket]
-    next.splice(targetIndex, 0, id)
-    goalsByDate[selectedDate.value] = next
-    persistGoals(goalsByDate)
+    if (!isString(id)) return
+    ensureTodayRollup()
+    removeGoal(id, false)
+    const insertionIndex =
+      typeof index === 'number' ? Math.min(Math.max(index, 0), state.order.length) : state.order.length
+    state.order.splice(insertionIndex, 0, id)
+    state.updatedAt = Date.now()
+    persistState()
   }
 
-  function removeGoal(id: string) {
-    const bucket = ensureBucket(selectedDate.value)
-    const next = bucket.filter((goal) => goal !== id)
-    if (next.length !== bucket.length) {
-      goalsByDate[selectedDate.value] = next
-      persistGoals(goalsByDate)
+  function removeGoal(id: string, persist = true) {
+    const beforeOrder = state.order.length
+    const beforeCompleted = state.completed.length
+    const nextOrder = state.order.filter((goalId) => goalId !== id)
+    const nextCompleted = state.completed.filter((goalId) => goalId !== id)
+    if (nextOrder.length === beforeOrder && nextCompleted.length === beforeCompleted) {
+      return
+    }
+    replaceArray(state.order, nextOrder)
+    replaceArray(state.completed, nextCompleted)
+    state.updatedAt = Date.now()
+    if (persist) {
+      persistState()
     }
   }
 
   function reorderGoals(fromIndex: number, toIndex: number) {
-    const bucket = ensureBucket(selectedDate.value)
+    ensureTodayRollup()
     if (
       fromIndex === toIndex ||
       fromIndex < 0 ||
-      fromIndex >= bucket.length ||
+      fromIndex >= state.order.length ||
       toIndex < 0 ||
-      toIndex > bucket.length
+      toIndex > state.order.length
     ) {
       return
     }
-    const updated = [...bucket]
+    const updated = [...state.order]
     const [moved] = updated.splice(fromIndex, 1)
     if (!moved) return
     updated.splice(toIndex, 0, moved)
-    goalsByDate[selectedDate.value] = updated
-    persistGoals(goalsByDate)
+    replaceArray(state.order, updated)
+    state.updatedAt = Date.now()
+    persistState()
   }
 
   function clearGoals() {
-    if (!goalIds.value.length) return
-    goalsByDate[selectedDate.value] = []
-    persistGoals(goalsByDate)
+    if (!state.order.length && !state.completed.length) return
+    state.order.splice(0)
+    state.completed.splice(0)
+    state.updatedAt = Date.now()
+    persistState()
+  }
+
+  function markGoalCompleted(id: string) {
+    ensureTodayRollup()
+    const index = state.order.indexOf(id)
+    if (index === -1) {
+      if (!state.completed.includes(id)) {
+        state.completed.push(id)
+      }
+      return
+    }
+    state.order.splice(index, 1)
+    if (!state.completed.includes(id)) {
+      state.completed.push(id)
+    }
+    state.updatedAt = Date.now()
+    persistState()
   }
 
   function refreshToday() {
-    selectedDate.value = getTodayKey()
-  }
-
-  function setDateKey(dateKey: string) {
-    if (!dateKey || !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
-      return
-    }
-    selectedDate.value = dateKey
+    ensureTodayRollup(true)
   }
 
   function isGoal(id: string) {
-    return goalIds.value.includes(id)
+    return state.order.includes(id)
   }
 
-  watch(selectedDate, (next) => {
-    ensureBucket(next)
-  })
+  function persistState() {
+    if (suppressPersist) return
+    const payload = cloneState(state)
+    if (remoteRef) {
+      set(remoteRef, payload).catch((error) => {
+        console.error('[TodayGoalsStore] Failed to sync goals', error)
+      })
+    } else {
+      persistLocalState(payload)
+    }
+  }
+
+  function applyState(payload: TodayGoalState) {
+    const normalized = normalizeState(payload)
+    replaceArray(state.order, normalized.order)
+    replaceArray(state.completed, normalized.completed)
+    state.dateKey = normalized.dateKey
+    state.updatedAt = normalized.updatedAt
+    ensureTodayRollup(true)
+  }
+
+  function connectRemote(uid: string) {
+    remoteRef = userTodayGoalsRef(uid)
+    unsubscribe = onValue(
+      remoteRef,
+      (snapshot) => {
+        suppressPersist = true
+        const payload = snapshot.exists()
+          ? normalizeState(snapshot.val() as TodayGoalSnapshot)
+          : createBlankState()
+        applyState(payload)
+        suppressPersist = false
+        ready.value = true
+      },
+      (error) => {
+        console.error('[TodayGoalsStore] Failed to subscribe goals', error)
+        suppressPersist = true
+        applyState(loadLocalState())
+        suppressPersist = false
+        ready.value = true
+      },
+    )
+  }
+
+  function detachRemote() {
+    unsubscribe?.()
+    unsubscribe = null
+    remoteRef = null
+    suppressPersist = false
+  }
 
   return {
+    ready,
     goalIds,
-    selectedDate,
+    completedIds,
+    stats,
     assignGoal,
     removeGoal,
     reorderGoals,
     clearGoals,
+    markGoalCompleted,
     refreshToday,
-    setDateKey,
     isGoal,
   }
 })

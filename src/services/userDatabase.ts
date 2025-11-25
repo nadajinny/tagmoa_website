@@ -29,6 +29,10 @@ export function userVersionRef(uid: string) {
   return dbRef(database, `${USERS_ROOT}/${uid}/version`)
 }
 
+export function userTodayGoalsRef(uid: string) {
+  return dbRef(database, `${USERS_ROOT}/${uid}/todayGoals`)
+}
+
 export function userProfileRef(uid: string) {
   return dbRef(database, `${USERS_ROOT}/${uid}/profile`)
 }
