@@ -110,7 +110,7 @@ function buildTimeLabel(task: SubTask) {
     </div>
   </div>
 
-  <div class="task-card__progress" v-if="totalSubtasks">
+  <div class="task-card__progress" v-if="totalSubtasks && variant !== 'nested'">
     <div class="task-card__progress-bar">
       <span
         class="task-card__progress-fill"
