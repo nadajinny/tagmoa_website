@@ -12,7 +12,8 @@ import type { MainTask, SubTask } from '../types/models'
 import { formatDate } from '../utils/dates'
 
 const workspace = useWorkspaceStore()
-const { dueTodayMain, dueTodaySub, visibleTags, allSubTasks, allMainTasks } = storeToRefs(workspace)
+const { dueTodayMain, dueTodaySub, visibleTags, allSubTasks, allMainTasks, workspaceReady } =
+  storeToRefs(workspace)
 const router = useRouter()
 const goalStore = useTodayGoalsStore()
 const { goalIds, stats: goalStats, completedIds } = storeToRefs(goalStore)
@@ -40,10 +41,18 @@ onMounted(() => {
 })
 
 watchEffect(() => {
+  if (!workspaceReady.value) {
+    return
+  }
   const ids = [...goalIds.value, ...completedIds.value]
   ids.forEach((id) => {
-    if (!subTaskLookup.value[id]) {
+    const task = subTaskLookup.value[id]
+    if (!task) {
       goalStore.removeGoal(id)
+      return
+    }
+    if (task.isCompleted) {
+      goalStore.markGoalCompleted(id)
     }
   })
 })
