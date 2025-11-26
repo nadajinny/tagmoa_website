@@ -1,13 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { MainTask, SubTask, Tag } from '../../types/models'
-import { formatDateRange, isDueToday, isOverdue } from '../../utils/dates'
+import { formatDateRange, formatTime, isDueToday, isOverdue } from '../../utils/dates'
 
-const props = defineProps<{
-  task: MainTask
-  subtasks?: SubTask[]
-  tags?: Tag[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    task: MainTask
+    subtasks?: SubTask[]
+    tags?: Tag[]
+    variant?: 'summary' | 'nested'
+  }>(),
+  {
+    variant: 'summary',
+  },
+)
 
 const emit = defineEmits<{
   open: [MainTask]
@@ -46,6 +52,28 @@ const statusTone = computed(() => {
   if (deadline.value && isDueToday(deadline.value)) return '#ffb347'
   return '#5577ff'
 })
+
+const priorityIcons = ['💡', '🔥', '🚀', '⭐️'] as const
+
+const nestedSubtasks = computed(() =>
+  (props.subtasks ?? [])
+    .filter((task) => !task.isCompleted)
+    .map((task) => ({
+      task,
+      scheduleLabel: formatDateRange(task.startDate, task.endDate) || '기간 미정',
+      timeLabel: buildTimeLabel(task),
+    })),
+)
+
+function buildTimeLabel(task: SubTask) {
+  const start = formatTime(task.startDate)
+  const end = formatTime(task.endDate)
+  if (start && end) {
+    if (start === end) return start
+    return `${start} ~ ${end}`
+  }
+  return start || end || ''
+}
 </script>
 
 <template>
@@ -72,28 +100,54 @@ const statusTone = computed(() => {
         {{ task.description || '설명 없음' }}
       </p>
 
-      <div class="task-card__meta">
-        <span class="pill-muted">{{ scheduleLabel }}</span>
-        <div class="task-card__tags" v-if="tags?.length">
-          <span v-for="tag in tags" :key="tag.id" class="tag-pill">
-            <span class="dot" :style="{ backgroundColor: tag.color }"></span>
-            {{ tag.name }}
-          </span>
-        </div>
-      </div>
-
-      <div class="task-card__progress" v-if="totalSubtasks">
-        <div class="task-card__progress-bar">
-          <span
-            class="task-card__progress-fill"
-            :style="{ width: `${Math.round(completionRatio * 100)}%`, backgroundColor: task.mainColor }"
-          />
-        </div>
-        <span class="task-card__progress-label">
-          세부 일정 {{ completedSubtasks }} / {{ totalSubtasks }}
-        </span>
-      </div>
+  <div class="task-card__meta">
+    <span class="pill-muted">{{ scheduleLabel }}</span>
+    <div class="task-card__tags" v-if="tags?.length">
+      <span v-for="tag in tags" :key="tag.id" class="tag-pill">
+        <span class="dot" :style="{ backgroundColor: tag.color }"></span>
+        {{ tag.name }}
+      </span>
     </div>
+  </div>
+
+  <div class="task-card__progress" v-if="totalSubtasks">
+    <div class="task-card__progress-bar">
+      <span
+        class="task-card__progress-fill"
+        :style="{ width: `${Math.round(completionRatio * 100)}%`, backgroundColor: task.mainColor }"
+      />
+    </div>
+    <span class="task-card__progress-label">
+      세부 일정 {{ completedSubtasks }} / {{ totalSubtasks }}
+    </span>
+  </div>
+
+  <div class="task-card__nested" v-if="variant === 'nested'">
+    <div class="task-card__nested-header">
+      <span>세부 일정</span>
+      <span class="task-card__nested-count">{{ nestedSubtasks.length }}건</span>
+    </div>
+    <ul v-if="nestedSubtasks.length" class="task-card__nested-list">
+      <li
+        v-for="row in nestedSubtasks"
+        :key="row.task.id"
+        :class="['task-card__nested-item', { 'task-card__nested-item--done': row.task.isCompleted }]"
+      >
+        <div class="task-card__nested-info">
+          <span class="task-card__nested-priority">
+            {{ priorityIcons[row.task.priority] ?? '•' }}
+          </span>
+          <p>{{ row.task.content || '내용 없음' }}</p>
+        </div>
+        <small>
+          {{ row.scheduleLabel }}
+          <template v-if="row.timeLabel"> · {{ row.timeLabel }}</template>
+        </small>
+      </li>
+    </ul>
+    <p v-else class="task-card__nested-empty">남아 있는 세부 일정이 없어요.</p>
+  </div>
+</div>
 
     <button class="task-card__menu" type="button" @click.stop="emit('menu', task)">
       ⋯
@@ -224,6 +278,83 @@ const statusTone = computed(() => {
   font-size: 1.35rem;
   cursor: pointer;
   color: var(--text-muted);
+}
+
+.task-card__nested {
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
+  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-card__nested-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.task-card__nested-count {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.task-card__nested-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.task-card__nested-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
+}
+
+.task-card__nested-item:last-child {
+  border-bottom: none;
+}
+
+.task-card__nested-info {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.task-card__nested-item p {
+  margin: 0;
+  font-size: clamp(0.92rem, 0.6vw + 0.45rem, 1.05rem);
+}
+
+.task-card__nested-item small {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.task-card__nested-item--done p {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.task-card__nested-priority {
+  font-size: 1rem;
+}
+
+.task-card__nested-empty {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin: 0;
 }
 
 @media (max-width: 640px) {

@@ -20,6 +20,7 @@ const search = ref('')
 const subSearch = ref('')
 const selectedTags = ref<string[]>([])
 const viewMode = ref<'main' | 'sub'>('main')
+const mainLayoutMode = ref<'summary' | 'nested'>('summary')
 const subSortMode = ref<'priority' | 'deadline'>('priority')
 const priorityIcons = ['💡', '🔥', '🚀', '⭐️'] as const
 
@@ -201,11 +202,31 @@ function buildTimeLabel(task: SubTask) {
 
     <div v-if="viewMode === 'main'" class="task-main-view">
       <div class="task-filters card-surface">
-        <input v-model="search" type="search" placeholder="제목, 설명으로 검색" />
-        <label class="toggle">
-          <input v-model="showCompleted" type="checkbox" />
-          완료된 일정 표시
-        </label>
+        <div class="task-filters__controls">
+          <input v-model="search" type="search" placeholder="제목, 설명으로 검색" />
+          <p class="task-filters__count">총 {{ filteredTasks.length }}건</p>
+          <div class="task-filters__divider" />
+          <label class="toggle task-filters__toggle">
+            <input v-model="showCompleted" type="checkbox" />
+            완료된 일정 표시
+          </label>
+          <div class="task-layout-toggle" role="group" aria-label="주요 일정 표시 방식">
+            <button
+              type="button"
+              :class="['task-layout-toggle__option', { 'task-layout-toggle__option--active': mainLayoutMode === 'summary' }]"
+              @click="mainLayoutMode = 'summary'"
+            >
+              정보 리스트
+            </button>
+            <button
+              type="button"
+              :class="['task-layout-toggle__option', { 'task-layout-toggle__option--active': mainLayoutMode === 'nested' }]"
+              @click="mainLayoutMode = 'nested'"
+            >
+              박스 내 세부 일정
+            </button>
+          </div>
+        </div>
         <div class="tags">
           <TagChip
             v-for="tag in visibleTags"
@@ -229,6 +250,7 @@ function buildTimeLabel(task: SubTask) {
           :task="task"
           :tags="visibleTags.filter((tag) => (task.tagIds ?? []).includes(tag.id))"
           :subtasks="workspace.getSubTasksForTask(task.id)"
+          :variant="mainLayoutMode"
           @open="openTask"
           @toggle-complete="toggleComplete"
         />
@@ -321,19 +343,54 @@ function buildTimeLabel(task: SubTask) {
 </template>
 
 <style scoped>
+
 .task-filters {
   padding: 1.5rem;
   border-radius: 28px;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
-.task-filters input[type='search'] {
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 0.9rem 1rem;
+.task-filters__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-radius: 24px;
+  background: transparent;
+}
+
+.task-filters__controls input[type='search'] {
+  flex: 1;
+  min-width: 220px;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 0.95rem 1.1rem;
   font-size: var(--text-size-base);
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(25, 30, 58, 0.08);
+}
+
+.task-filters__count {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.task-filters__divider {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(25, 30, 58, 0.12);
+  min-height: 32px;
+}
+
+.task-filters__toggle {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(25, 30, 58, 0.1);
 }
 
 .toggle {
@@ -341,6 +398,32 @@ function buildTimeLabel(task: SubTask) {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
+}
+
+
+.task-layout-toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  border-radius: 999px;
+  padding: 0.25rem;
+  background: rgba(84, 118, 255, 0.12);
+  border: 1px solid rgba(84, 118, 255, 0.25);
+}
+
+.task-layout-toggle__option {
+  border: none;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.task-layout-toggle__option--active {
+  background: #fff;
+  color: var(--brand-primary);
+  box-shadow: 0 6px 16px rgba(25, 30, 58, 0.15);
 }
 
 .tags {
@@ -500,6 +583,29 @@ function buildTimeLabel(task: SubTask) {
 }
 
 @media (max-width: 720px) {
+  .task-filters__controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .task-filters__count,
+  .task-filters__divider {
+    align-self: flex-start;
+  }
+
+  .task-filters__divider {
+    display: none;
+  }
+
+  .task-filters__count {
+    margin-left: 0;
+  }
+
+  .task-layout-toggle {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .subtask-panel__filters {
     flex-direction: column;
     align-items: stretch;
