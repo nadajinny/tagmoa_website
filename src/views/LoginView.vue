@@ -35,9 +35,7 @@ async function signInWithGoogle() {
 }
 
 function shouldRedirectToApp() {
-  if (route.query.redirect === 'app') return true
-  if (typeof navigator === 'undefined') return false
-  return /Android/i.test(navigator.userAgent)
+  return route.query.redirect === 'app'
 }
 </script>
 

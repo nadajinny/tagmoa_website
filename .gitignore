@@ -35,6 +35,7 @@ coverage
 
 # Google Search Console verification files
 public/google*.html
+public/.well-known/assetlinks.json
 
 # Cypress
 /cypress/videos/
