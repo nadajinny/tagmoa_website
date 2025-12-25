@@ -11,6 +11,7 @@ const CalendarView = () => import('../views/CalendarView.vue')
 const TodayGoalsView = () => import('../views/TodayGoalsView.vue')
 const ProfileView = () => import('../views/ProfileView.vue')
 const LoginView = () => import('../views/LoginView.vue')
+const AuthFinishView = () => import('../views/AuthFinishView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,6 +26,12 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: LoginView,
+      meta: { public: true },
+    },
+    {
+      path: '/auth/finish',
+      name: 'auth-finish',
+      component: AuthFinishView,
       meta: { public: true },
     },
     {

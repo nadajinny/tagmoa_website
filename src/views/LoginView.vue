@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const { session } = storeToRefs(authStore)
 
@@ -15,6 +16,10 @@ watch(
   session,
   (value) => {
     if (value) {
+      if (shouldRedirectToApp()) {
+        window.location.assign('/auth/finish')
+        return
+      }
       router.push({ name: 'home' })
     }
   },
@@ -27,6 +32,12 @@ async function signInWithGoogle() {
   } catch {
     // error message handled via store state
   }
+}
+
+function shouldRedirectToApp() {
+  if (route.query.redirect === 'app') return true
+  if (typeof navigator === 'undefined') return false
+  return /Android/i.test(navigator.userAgent)
 }
 </script>
 
